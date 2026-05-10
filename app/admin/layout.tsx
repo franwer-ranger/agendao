@@ -1,7 +1,24 @@
+import { cookies } from 'next/headers'
 import Link from 'next/link'
+import { Scissors, Users, Store } from 'lucide-react'
 import { getCurrentSalon } from '@/lib/salon'
 import { Toaster } from '@/components/ui/sonner'
+import { Separator } from '@/components/ui/separator'
 import { ThemeToggle } from '@/components/theme-toggle'
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarHeader,
+  SidebarInset,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarRail,
+  SidebarTrigger,
+} from '@/components/ui/sidebar'
 
 // Admin dashboard is request-time only: it reads from a service-role-backed
 // client and will gain cookie-based auth in Block 10. Skip the static
@@ -13,44 +30,76 @@ export default async function AdminLayout({
 }: {
   children: React.ReactNode
 }) {
-  const salon = await getCurrentSalon()
+  const [salon, cookieStore] = await Promise.all([getCurrentSalon(), cookies()])
+  const defaultOpen = cookieStore.get('sidebar_state')?.value !== 'false'
 
   return (
-    <div className="flex min-h-full flex-col">
-      <header className="sticky top-0 z-30 flex h-12 items-center justify-between border-b bg-background/80 px-4 backdrop-blur">
-        <div className="flex items-center gap-3">
-          <Link href="/admin/services" className="font-heading text-sm font-medium">
-            {salon.name}
-          </Link>
-          <span className="text-xs text-muted-foreground">Panel admin</span>
-        </div>
-        <ThemeToggle />
-      </header>
+    <SidebarProvider defaultOpen={defaultOpen}>
+      <Sidebar collapsible="icon">
+        <SidebarHeader>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton size="lg" asChild tooltip={salon.name}>
+                <Link href="/admin/services">
+                  <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
+                    <Scissors className="size-4" />
+                  </div>
+                  <div className="flex flex-col gap-0.5 leading-none">
+                    <span className="font-semibold">{salon.name}</span>
+                    <span className="text-xs text-sidebar-foreground/60">Panel admin</span>
+                  </div>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarHeader>
 
-      <div className="flex flex-1 flex-col md:flex-row">
-        <nav className="border-b md:w-56 md:border-r md:border-b-0">
-          <ul className="flex gap-1 p-2 md:flex-col">
-            <li>
-              <Link
-                href="/admin/services"
-                className="block rounded-md px-3 py-2 text-sm hover:bg-muted"
-              >
-                Servicios
-              </Link>
-            </li>
-            <li className="text-sm text-muted-foreground px-3 py-2">
-              Empleados <span className="text-xs">(próximamente)</span>
-            </li>
-            <li className="text-sm text-muted-foreground px-3 py-2">
-              Salón <span className="text-xs">(próximamente)</span>
-            </li>
-          </ul>
-        </nav>
+        <SidebarContent>
+          <SidebarGroup>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild tooltip="Servicios">
+                    <Link href="/admin/services">
+                      <Scissors className="size-4" />
+                      <span>Servicios</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton disabled tooltip="Empleados (próximamente)">
+                    <Users className="size-4" />
+                    <span>Empleados</span>
+                    <span className="ml-auto text-xs opacity-50">Próx.</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton disabled tooltip="Salón (próximamente)">
+                    <Store className="size-4" />
+                    <span>Salón</span>
+                    <span className="ml-auto text-xs opacity-50">Próx.</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        </SidebarContent>
 
-        <main className="flex-1 p-4 md:p-6">{children}</main>
-      </div>
+        <SidebarRail />
+      </Sidebar>
+
+      <SidebarInset>
+        <header className="sticky top-0 z-30 flex h-12 items-center gap-2 border-b bg-background/80 px-4 backdrop-blur">
+          <SidebarTrigger className="-ml-1" />
+          <Separator orientation="vertical" className="h-4" />
+          <div className="ml-auto">
+            <ThemeToggle />
+          </div>
+        </header>
+        <div className="p-4 md:p-6">{children}</div>
+      </SidebarInset>
 
       <Toaster position="top-right" richColors />
-    </div>
+    </SidebarProvider>
   )
 }
