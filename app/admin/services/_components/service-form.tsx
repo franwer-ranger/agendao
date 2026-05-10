@@ -129,7 +129,7 @@ export function ServiceForm({
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-5">
-      <div className="flex items-center justify-between rounded-md border p-3">
+      <div className="flex items-center justify-between gap-4 rounded-md border p-3">
         <div>
           <Label htmlFor="is_active" className="text-sm font-medium">
             Servicio activo
