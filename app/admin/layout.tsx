@@ -3,6 +3,11 @@ import { getCurrentSalon } from '@/lib/salon'
 import { Toaster } from '@/components/ui/sonner'
 import { ThemeToggle } from '@/components/theme-toggle'
 
+// Admin dashboard is request-time only: it reads from a service-role-backed
+// client and will gain cookie-based auth in Block 10. Skip the static
+// prerender pass so missing env at build time doesn't break the build.
+export const dynamic = 'force-dynamic'
+
 export default async function AdminLayout({
   children,
 }: {
