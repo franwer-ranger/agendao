@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers'
 import Link from 'next/link'
-import { Scissors, Users, Store } from 'lucide-react'
+import { ClientIcon } from '@/components/ui/client-icon'
 import { getCurrentSalon } from '@/lib/salon'
 import { Toaster } from '@/components/ui/sonner'
 import { Separator } from '@/components/ui/separator'
@@ -42,7 +42,7 @@ export default async function AdminLayout({
               <SidebarMenuButton size="lg" asChild tooltip={salon.name}>
                 <Link href="/admin/services">
                   <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-                    <Scissors className="size-4" /> 
+                      <ClientIcon name="scissors" className="size-4" />
                   </div>
                   <div className="flex flex-col gap-0.5 leading-none">
                     <span className="font-semibold">{salon.name}</span>
@@ -61,7 +61,7 @@ export default async function AdminLayout({
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild tooltip="Servicios">
                     <Link href="/admin/services">
-                      <Scissors className="size-4" />
+                    <ClientIcon name="scissors" className="size-4" />
                       <span>Servicios</span>
                     </Link>
                   </SidebarMenuButton>
@@ -69,16 +69,17 @@ export default async function AdminLayout({
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild tooltip="Empleados">
                     <Link href="/admin/employees">
-                      <Users className="size-4" />
+                      <ClientIcon name="users" className="size-4" />
                       <span>Empleados</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
-                  <SidebarMenuButton disabled tooltip="Salón (próximamente)">
-                    <Store className="size-4" />
-                    <span>Salón</span>
-                    <span className="ml-auto text-xs opacity-50">Próx.</span>
+                  <SidebarMenuButton asChild tooltip="Salón">
+                    <Link href="/admin/salon">
+                      <ClientIcon name="store" className="size-4" />
+                      <span>Salón</span>
+                    </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               </SidebarMenu>
