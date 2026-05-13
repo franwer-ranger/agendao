@@ -34,9 +34,8 @@ export default async function EditEmployeePage({
           {employee.display_name}
         </h1>
         <p className="text-sm text-muted-foreground">
-          Edita los datos básicos, los servicios que puede realizar y su
-          horario semanal. Descansos y ausencias llegan en la siguiente
-          iteración.
+          Edita los datos básicos, los servicios que puede realizar y su horario
+          semanal. Descansos y ausencias llegan en la siguiente iteración.
         </p>
       </div>
 

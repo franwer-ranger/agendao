@@ -48,12 +48,7 @@ export function ToggleActiveButton({
 
   if (!isActive) {
     return (
-      <Button
-        variant="outline"
-        size="sm"
-        disabled={pending}
-        onClick={activate}
-      >
+      <Button variant="outline" size="sm" disabled={pending} onClick={activate}>
         Reactivar
       </Button>
     )
@@ -75,7 +70,11 @@ export function ToggleActiveButton({
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button variant="ghost" onClick={() => setOpen(false)} disabled={pending}>
+          <Button
+            variant="ghost"
+            onClick={() => setOpen(false)}
+            disabled={pending}
+          >
             Cancelar
           </Button>
           <Button variant="destructive" onClick={deactivate} disabled={pending}>

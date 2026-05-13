@@ -75,16 +75,18 @@ export default async function ServicesPage({
           <TableBody>
             {rows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center text-muted-foreground">
-                  {q ? 'Ningún servicio coincide con la búsqueda.' : 'Aún no hay servicios.'}
+                <TableCell
+                  colSpan={7}
+                  className="text-center text-muted-foreground"
+                >
+                  {q
+                    ? 'Ningún servicio coincide con la búsqueda.'
+                    : 'Aún no hay servicios.'}
                 </TableCell>
               </TableRow>
             ) : null}
             {rows.map((s) => (
-              <TableRow
-                key={s.id}
-                className={s.is_active ? '' : 'opacity-60'}
-              >
+              <TableRow key={s.id} className={s.is_active ? '' : 'opacity-60'}>
                 <TableCell className="font-medium">{s.name}</TableCell>
                 <TableCell className="text-right tabular-nums">
                   {s.duration_minutes} min

@@ -24,11 +24,7 @@ export function DayRow({
   onToggle: (on: boolean) => void
   onAdd: () => void
   onRemove: (key: string) => void
-  onUpdate: (
-    key: string,
-    field: 'starts_at' | 'ends_at',
-    value: string,
-  ) => void
+  onUpdate: (key: string, field: 'starts_at' | 'ends_at', value: string) => void
   onCopyToDays: (targets: number[]) => void
 }) {
   const isActive = shifts.length > 0
@@ -78,12 +74,7 @@ export function DayRow({
               sourceLabel={label}
               onConfirm={onCopyToDays}
             />
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={onAdd}
-            >
+            <Button type="button" variant="outline" size="sm" onClick={onAdd}>
               + Tramo
             </Button>
           </>

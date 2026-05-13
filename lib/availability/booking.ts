@@ -67,7 +67,11 @@ export async function validateAndCreateBooking(
 
   if (bookingErr) return { ok: false, ...mapBookingError(bookingErr) }
   if (!booking) {
-    return { ok: false, code: 'UNKNOWN', message: 'No se pudo crear la reserva.' }
+    return {
+      ok: false,
+      code: 'UNKNOWN',
+      message: 'No se pudo crear la reserva.',
+    }
   }
 
   // 2) Insertar el booking_item — aquí saltan los triggers de validación

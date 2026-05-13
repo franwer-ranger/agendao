@@ -120,7 +120,10 @@ export function HoursForm({
 
   const errors = useMemo(() => computeErrors(days), [days])
   const hasError = errors.size > 0
-  const dirty = useMemo(() => serialize(days) !== initialJson, [days, initialJson])
+  const dirty = useMemo(
+    () => serialize(days) !== initialJson,
+    [days, initialJson],
+  )
 
   useEffect(() => {
     if (!submittedRef.current) return

@@ -72,7 +72,10 @@ export default async function EmployeesPage({
           <TableBody>
             {rows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center text-muted-foreground">
+                <TableCell
+                  colSpan={5}
+                  className="text-center text-muted-foreground"
+                >
                   {q
                     ? 'Ningún empleado coincide con la búsqueda.'
                     : 'Aún no hay empleados.'}
@@ -80,10 +83,7 @@ export default async function EmployeesPage({
               </TableRow>
             ) : null}
             {rows.map((e) => (
-              <TableRow
-                key={e.id}
-                className={e.is_active ? '' : 'opacity-60'}
-              >
+              <TableRow key={e.id} className={e.is_active ? '' : 'opacity-60'}>
                 <TableCell className="font-medium">{e.display_name}</TableCell>
                 <TableCell className="text-right tabular-nums">
                   {e.display_order}

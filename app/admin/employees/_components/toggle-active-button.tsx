@@ -48,12 +48,7 @@ export function ToggleActiveButton({
 
   if (!isActive) {
     return (
-      <Button
-        variant="outline"
-        size="sm"
-        disabled={pending}
-        onClick={activate}
-      >
+      <Button variant="outline" size="sm" disabled={pending} onClick={activate}>
         Reactivar
       </Button>
     )
@@ -71,12 +66,16 @@ export function ToggleActiveButton({
           <DialogTitle>Desactivar &quot;{name}&quot;</DialogTitle>
           <DialogDescription>
             Dejará de aparecer al asignar nuevas reservas. Las reservas futuras
-            ya creadas se mantienen — gestiónalas manualmente si procede.
-            Podrás reactivarlo más tarde.
+            ya creadas se mantienen — gestiónalas manualmente si procede. Podrás
+            reactivarlo más tarde.
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button variant="ghost" onClick={() => setOpen(false)} disabled={pending}>
+          <Button
+            variant="ghost"
+            onClick={() => setOpen(false)}
+            disabled={pending}
+          >
             Cancelar
           </Button>
           <Button variant="destructive" onClick={deactivate} disabled={pending}>

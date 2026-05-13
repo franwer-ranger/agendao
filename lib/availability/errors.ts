@@ -13,6 +13,7 @@ export type BookingErrorCode =
   | 'CAPACITY_EXCEEDED'
   | 'SALON_MISMATCH'
   | 'WORKING_HOURS'
+  | 'TOO_CLOSE_TO_NOW'
   | 'UNKNOWN'
 
 export type BookingError = {
@@ -48,7 +49,10 @@ export function mapBookingError(err: PgLikeError): BookingError {
   // P0001 — RAISE EXCEPTION del trigger booking_items_validate.
   if (code === 'P0001') {
     if (/booking_outside_schedule/i.test(msg))
-      return { code: 'OUTSIDE_SCHEDULE', message: 'Fuera del horario del empleado.' }
+      return {
+        code: 'OUTSIDE_SCHEDULE',
+        message: 'Fuera del horario del empleado.',
+      }
     if (/booking_overlaps_break/i.test(msg))
       return { code: 'OVERLAPS_BREAK', message: 'Coincide con un descanso.' }
     if (/booking_overlaps_time_off/i.test(msg))
@@ -64,6 +68,11 @@ export function mapBookingError(err: PgLikeError): BookingError {
       return {
         code: 'SPANS_MULTIPLE_DAYS',
         message: 'La reserva no puede cruzar de un día al siguiente.',
+      }
+    if (/booking_too_close_to_now/i.test(msg))
+      return {
+        code: 'TOO_CLOSE_TO_NOW',
+        message: 'Ese horario ya está demasiado cerca para reservar online.',
       }
     if (/_salon_mismatch/i.test(msg))
       return {

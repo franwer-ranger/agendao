@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import { useActionState, useEffect, useRef } from 'react'
-import { Controller, useForm } from 'react-hook-form'
+import { Controller, useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import Link from 'next/link'
@@ -102,8 +102,7 @@ export function EmployeeForm({
     }
   }, [state, form])
 
-  const onSubmit = form.handleSubmit((values) => {
-    submittedRef.current = true
+  const handleFormAction = form.handleSubmit((values) => {
     const fd = new FormData()
     fd.set('display_name', values.display_name)
     fd.set('bio', values.bio ?? '')
@@ -114,6 +113,11 @@ export function EmployeeForm({
     }
     React.startTransition(() => formAction(fd))
   })
+
+  const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    submittedRef.current = true
+    handleFormAction(e)
+  }
 
   const errors = form.formState.errors
 
@@ -131,7 +135,7 @@ export function EmployeeForm({
         </div>
         <Switch
           id="is_active"
-          checked={form.watch('is_active')}
+          checked={useWatch({ control: form.control, name: 'is_active' })}
           onCheckedChange={(v) => form.setValue('is_active', v)}
         />
       </div>

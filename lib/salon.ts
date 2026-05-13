@@ -22,7 +22,7 @@ export async function getCurrentSalon(): Promise<CurrentSalon> {
   if (error) {
     throw new Error(
       `Error consultando el salón "${DEMO_SALON_SLUG}": ${error.message}. ` +
-        `Comprueba que SUPABASE_SERVICE_ROLE_KEY es la key correcta (JWT que empieza por "eyJ…", no un placeholder).`,
+        'Comprueba que SUPABASE_SERVICE_ROLE_KEY es la key correcta (JWT que empieza por "eyJ…", no un placeholder).',
     )
   }
   if (!data) {

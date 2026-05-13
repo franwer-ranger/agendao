@@ -5,6 +5,7 @@ import { madridLocalDateTimeToUtc } from './time'
 import type { AvailabilityInput, AvailableSlot } from './types'
 
 export type { AvailabilityInput, AvailableSlot } from './types'
+export { groupSlotsByLocalDate } from './group'
 
 // Punto de entrada del motor. Devuelve los slots disponibles para el input dado.
 // `opts.now` es inyectable para QA manual de casos con fechas concretas (p.ej. DST).

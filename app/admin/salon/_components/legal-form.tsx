@@ -58,9 +58,7 @@ export function LegalForm({ defaults }: { defaults: LegalFormDefaults }) {
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-4">
       <div className="flex flex-col gap-1">
-        <Label htmlFor="terms_text">
-          Términos y condiciones / aviso legal
-        </Label>
+        <Label htmlFor="terms_text">Términos y condiciones / aviso legal</Label>
         <Textarea
           id="terms_text"
           rows={12}

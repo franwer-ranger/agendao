@@ -77,7 +77,10 @@ export const weeklyScheduleSchema = z
       }
     })
     // 2) sin solapes dentro del mismo weekday
-    const byDay = new Map<number, { start: string; end: string; idx: number }[]>()
+    const byDay = new Map<
+      number,
+      { start: string; end: string; idx: number }[]
+    >()
     data.shifts.forEach((s, idx) => {
       const list = byDay.get(s.weekday) ?? []
       list.push({ start: s.starts_at, end: s.ends_at, idx })
@@ -135,7 +138,10 @@ export const recurringBreaksSchema = z
         })
       }
     })
-    const byDay = new Map<number, { start: string; end: string; idx: number }[]>()
+    const byDay = new Map<
+      number,
+      { start: string; end: string; idx: number }[]
+    >()
     data.breaks.forEach((b, idx) => {
       const list = byDay.get(b.weekday) ?? []
       list.push({ start: b.starts_at, end: b.ends_at, idx })

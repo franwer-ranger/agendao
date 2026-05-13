@@ -56,9 +56,11 @@ async function syncEmployeeAssignments(
   }
 
   if (toAdd.length > 0) {
-    const { error } = await supabase.from('employee_services').insert(
-      toAdd.map((employee_id) => ({ employee_id, service_id: serviceId })),
-    )
+    const { error } = await supabase
+      .from('employee_services')
+      .insert(
+        toAdd.map((employee_id) => ({ employee_id, service_id: serviceId })),
+      )
     if (error) throw error
   }
 }
@@ -77,7 +79,11 @@ export async function createServiceAction(
 
   const salon = await getCurrentSalon()
   const supabase = createAdminClient()
-  const slug = await resolveUniqueServiceSlug(supabase, salon.id, parsed.data.name)
+  const slug = await resolveUniqueServiceSlug(
+    supabase,
+    salon.id,
+    parsed.data.name,
+  )
 
   const { data: created, error } = await supabase
     .from('services')
@@ -95,7 +101,10 @@ export async function createServiceAction(
     .single()
 
   if (error || !created) {
-    return { ok: false, message: error?.message ?? 'No se pudo crear el servicio' }
+    return {
+      ok: false,
+      message: error?.message ?? 'No se pudo crear el servicio',
+    }
   }
 
   await syncEmployeeAssignments(created.id, salon.id, parsed.data.employee_ids)
@@ -132,7 +141,12 @@ export async function updateServiceAction(
   const slug =
     current.name === parsed.data.name
       ? current.slug
-      : await resolveUniqueServiceSlug(supabase, salon.id, parsed.data.name, serviceId)
+      : await resolveUniqueServiceSlug(
+          supabase,
+          salon.id,
+          parsed.data.name,
+          serviceId,
+        )
 
   const { error: updErr } = await supabase
     .from('services')
@@ -158,7 +172,9 @@ export async function updateServiceAction(
   redirect('/admin/services')
 }
 
-export async function setServiceActiveAction(formData: FormData): Promise<void> {
+export async function setServiceActiveAction(
+  formData: FormData,
+): Promise<void> {
   const idRaw = formData.get('id')
   const activeRaw = formData.get('active')
   const id = Number(idRaw)
