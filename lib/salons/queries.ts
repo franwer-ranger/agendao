@@ -1,3 +1,4 @@
+import { cache } from 'react'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 export type SalonSettings = {
@@ -30,6 +31,25 @@ export type SalonClosure = {
   ends_at: string
   label: string
 }
+
+// Resolución del salón por slug para el flujo público (URL /[salonSlug]/book/...).
+// Envuelto con React `cache()` para que múltiples páginas/components de la misma
+// request reusen el resultado sin refetch.
+export const getSalonBySlug = cache(
+  async (slug: string): Promise<SalonSettings | null> => {
+    const supabase = createAdminClient()
+    const { data, error } = await supabase
+      .from('salons')
+      .select(
+        'id, slug, name, timezone, locale, address, phone, contact_email, logo_path, slot_granularity_minutes, booking_min_hours_ahead, booking_max_days_ahead, cancellation_min_hours, cancellation_policy_text, terms_text',
+      )
+      .eq('slug', slug)
+      .maybeSingle()
+
+    if (error) throw error
+    return (data ?? null) as SalonSettings | null
+  },
+)
 
 export async function getSalonSettings(
   salonId: number,

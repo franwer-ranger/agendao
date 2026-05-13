@@ -3,6 +3,49 @@ import { z } from 'zod'
 const HHMM = /^\d{2}:\d{2}$/
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
 
+// ─── Slug del salón ────────────────────────────────────────────────────────
+// El slug aparece como segmento top-level en /[salonSlug]/... y compite con
+// rutas reservadas del sistema. Esta blacklist debe alinearse con cualquier
+// segmento estático top-level que tenga la app (admin, api, etc.) y con
+// nombres comunes que confundirían a usuarios o vulnerarían convenciones web.
+
+export const RESERVED_SALON_SLUGS = new Set<string>([
+  'admin',
+  'api',
+  'app',
+  'assets',
+  'auth',
+  'book',
+  'favicon.ico',
+  'health',
+  'login',
+  'logout',
+  'public',
+  'robots.txt',
+  's',
+  'signin',
+  'signup',
+  'sitemap.xml',
+  'static',
+  'well-known',
+  '_next',
+])
+
+const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
+
+export const salonSlugSchema = z
+  .string()
+  .trim()
+  .min(2, 'Mínimo 2 caracteres')
+  .max(40, 'Máximo 40 caracteres')
+  .regex(
+    SLUG_PATTERN,
+    'Sólo minúsculas, números y guiones (no al principio ni al final, sin dobles)',
+  )
+  .refine((v) => !RESERVED_SALON_SLUGS.has(v), {
+    message: 'Ese identificador está reservado, elige otro',
+  })
+
 // ─── Identidad ─────────────────────────────────────────────────────────────
 
 export const identityFormSchema = z.object({
