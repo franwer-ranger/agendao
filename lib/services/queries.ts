@@ -107,6 +107,33 @@ export async function getServiceById(
   }
 }
 
+export type PublicServiceRow = {
+  id: number
+  name: string
+  description: string | null
+  duration_minutes: number
+  price_cents: number
+}
+
+// Servicios visibles en el flujo público de reserva: sólo activos, con los
+// campos que la UI necesita para pintar la tarjeta de selección. Mantiene
+// orden por display_order y nombre, igual que el listing admin.
+export async function listPublicServices(
+  salonId: number,
+): Promise<PublicServiceRow[]> {
+  const supabase = createAdminClient()
+  const { data, error } = await supabase
+    .from('services')
+    .select('id, name, description, duration_minutes, price_cents')
+    .eq('salon_id', salonId)
+    .eq('is_active', true)
+    .order('display_order', { ascending: true })
+    .order('name', { ascending: true })
+
+  if (error) throw error
+  return (data ?? []) as PublicServiceRow[]
+}
+
 export async function listEmployeesForSalon(
   salonId: number,
 ): Promise<EmployeeOption[]> {
