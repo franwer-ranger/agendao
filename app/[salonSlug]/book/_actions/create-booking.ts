@@ -3,9 +3,11 @@
 import { getAvailableSlots } from '@/lib/availability'
 import { validateAndCreateBooking } from '@/lib/availability/booking'
 import { upsertClientForBooking } from '@/lib/clients/queries'
+import { emitBookingCreatedEmails } from '@/lib/email/triggers/on-booking-created'
 import { getSalonBySlug } from '@/lib/salons/queries'
 import { getServiceById } from '@/lib/services/queries'
 import { redirect } from 'next/navigation'
+import { after } from 'next/server'
 import {
   parseCreateBookingFormData,
   type CreateBookingActionState,
@@ -169,6 +171,12 @@ export async function createPublicBookingAction(
   }
 
   if (result.ok) {
+    // Emails fuera del path crítico: `after()` ejecuta tras enviar la respuesta,
+    // así el redirect al cliente no espera al envío.
+    const createdBookingId = result.bookingId
+    after(async () => {
+      await emitBookingCreatedEmails(createdBookingId)
+    })
     redirect(`/${salonSlug}/book/done/${result.publicId}`)
   }
 
