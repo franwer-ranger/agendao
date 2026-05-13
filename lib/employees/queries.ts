@@ -57,6 +57,26 @@ export type ServiceOption = {
   is_active: boolean
 }
 
+export async function getPublicEmployeeName({
+  salonId,
+  employeeId,
+}: {
+  salonId: number
+  employeeId: number
+}): Promise<string | null> {
+  const supabase = createAdminClient()
+  const { data, error } = await supabase
+    .from('employees')
+    .select('display_name, is_active')
+    .eq('id', employeeId)
+    .eq('salon_id', salonId)
+    .maybeSingle()
+
+  if (error) throw error
+  if (!data || !data.is_active) return null
+  return data.display_name as string
+}
+
 export type PublicEmployeeRow = {
   id: number
   display_name: string
