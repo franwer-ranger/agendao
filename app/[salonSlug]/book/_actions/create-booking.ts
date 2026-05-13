@@ -1,11 +1,11 @@
 'use server'
 
-import { redirect } from 'next/navigation'
 import { getAvailableSlots } from '@/lib/availability'
 import { validateAndCreateBooking } from '@/lib/availability/booking'
 import { upsertClientForBooking } from '@/lib/clients/queries'
 import { getSalonBySlug } from '@/lib/salons/queries'
 import { getServiceById } from '@/lib/services/queries'
+import { redirect } from 'next/navigation'
 import {
   parseCreateBookingFormData,
   type CreateBookingActionState,
@@ -152,8 +152,7 @@ export async function createPublicBookingAction(
       to: preselectedDate,
     })
     const alt = anySlots.find(
-      (s) =>
-        s.startsAt === input.startsAt && s.employeeId !== input.employeeId,
+      (s) => s.startsAt === input.startsAt && s.employeeId !== input.employeeId,
     )
     if (alt) {
       result = await validateAndCreateBooking({

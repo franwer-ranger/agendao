@@ -29,10 +29,7 @@ export const detailsFormSchema = z.object({
       (v) => v === '' || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v),
       'Email no válido',
     ),
-  clientNote: z
-    .string()
-    .trim()
-    .max(500, 'Máximo 500 caracteres'),
+  clientNote: z.string().trim().max(500, 'Máximo 500 caracteres'),
 })
 
 export type DetailsFormValues = z.infer<typeof detailsFormSchema>
@@ -62,7 +59,10 @@ export const createBookingInputSchema = z.object({
   serviceId: z.string().regex(/^\d+$/).transform(Number),
   employeeId: z.string().regex(/^\d+$/).transform(Number),
   startsAt: z.string().min(1),
-  originalEmployeeChoice: z.union([z.literal('any'), z.string().regex(/^\d+$/)]),
+  originalEmployeeChoice: z.union([
+    z.literal('any'),
+    z.string().regex(/^\d+$/),
+  ]),
   idempotencyKey: z.string().min(8).max(128),
   termsRequired: z.union([z.literal('1'), z.literal('0')]),
 })

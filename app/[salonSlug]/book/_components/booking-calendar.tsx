@@ -5,7 +5,11 @@ import { useRouter } from 'next/navigation'
 import { es } from 'date-fns/locale'
 import { Calendar } from '@/components/ui/calendar'
 import { cn } from '@/lib/utils'
-import { formatLocalDateLong, formatLocalTime, isoDateInTimezone } from '../_lib/format'
+import {
+  formatLocalDateLong,
+  formatLocalTime,
+  isoDateInTimezone,
+} from '../_lib/format'
 
 type Slot = {
   startsAt: string
@@ -51,7 +55,8 @@ export function BookingCalendar({
   )
 
   const fallbackKey = React.useMemo(() => {
-    if (initialDateKey && availableKeys.has(initialDateKey)) return initialDateKey
+    if (initialDateKey && availableKeys.has(initialDateKey))
+      return initialDateKey
     const sorted = [...availableKeys].sort()
     return sorted[0]
   }, [initialDateKey, availableKeys])
@@ -61,7 +66,7 @@ export function BookingCalendar({
   )
 
   const selectedDate = selectedKey ? dateFromKey(selectedKey) : undefined
-  const slots = selectedKey ? slotsByDate[selectedKey] ?? [] : []
+  const slots = selectedKey ? (slotsByDate[selectedKey] ?? []) : []
 
   const minDate = dateFromKey(minDateKey)
   const maxDate = dateFromKey(maxDateKey)
@@ -113,7 +118,9 @@ export function BookingCalendar({
         {selectedKey ? (
           <>
             <p className="mb-3 text-sm font-medium text-muted-foreground">
-              {capitalize(formatLocalDateLong(dateFromKey(selectedKey), timezone))}
+              {capitalize(
+                formatLocalDateLong(dateFromKey(selectedKey), timezone),
+              )}
             </p>
             {slots.length === 0 ? (
               <p className="rounded-lg bg-muted px-4 py-6 text-center text-sm text-muted-foreground">

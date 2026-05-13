@@ -8,9 +8,7 @@ import { BookingSummary } from '../_components/summary'
 import { DetailsForm } from '../_components/details-form'
 import { isoDateInTimezone } from '../_lib/format'
 
-function parseSearchParam(
-  raw: string | string[] | undefined,
-): string | null {
+function parseSearchParam(raw: string | string[] | undefined): string | null {
   if (typeof raw !== 'string') return null
   return raw.trim() || null
 }
@@ -61,7 +59,9 @@ export default async function DetailsStepPage({
   }
 
   if (Number.isNaN(new Date(startsAt).getTime())) {
-    redirect(`/${salonSlug}/book/datetime?serviceId=${serviceId}&employeeId=${employeeId}`)
+    redirect(
+      `/${salonSlug}/book/datetime?serviceId=${serviceId}&employeeId=${employeeId}`,
+    )
   }
 
   const service = await getServiceById(serviceId, salon.id)
@@ -95,8 +95,7 @@ export default async function DetailsStepPage({
   if (!stillThere) {
     const params2 = new URLSearchParams({
       serviceId: String(serviceId),
-      employeeId:
-        rawOriginalChoice === 'any' ? 'any' : String(employeeId),
+      employeeId: rawOriginalChoice === 'any' ? 'any' : String(employeeId),
       preselectedDate: dayKey,
     })
     redirect(`/${salonSlug}/book/datetime?${params2.toString()}`)

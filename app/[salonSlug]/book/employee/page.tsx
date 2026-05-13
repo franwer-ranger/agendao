@@ -1,8 +1,8 @@
-import { notFound, redirect } from 'next/navigation'
-import Link from 'next/link'
+import { listPublicEmployeesForService } from '@/lib/employees/queries'
 import { getSalonBySlug } from '@/lib/salons/queries'
 import { getServiceById } from '@/lib/services/queries'
-import { listPublicEmployeesForService } from '@/lib/employees/queries'
+import Link from 'next/link'
+import { notFound, redirect } from 'next/navigation'
 import { AnyEmployeeOption } from '../_components/any-employee-option'
 import { EmployeeCard } from '../_components/employee-card'
 
@@ -55,8 +55,7 @@ export default async function EmployeeStepPage({
       {employees.length === 0 ? (
         <div className="rounded-xl border border-dashed bg-muted/30 px-4 py-10 text-center">
           <p className="text-sm text-muted-foreground">
-            Ahora mismo no hay ningún profesional disponible para este
-            servicio.
+            Ahora mismo no hay ningún profesional disponible para este servicio.
           </p>
           <Link
             href={`/${salonSlug}/book/service`}
@@ -72,10 +71,7 @@ export default async function EmployeeStepPage({
           </li>
           {employees.map((employee) => (
             <li key={employee.id}>
-              <EmployeeCard
-                employee={employee}
-                href={buildHref(employee.id)}
-              />
+              <EmployeeCard employee={employee} href={buildHref(employee.id)} />
             </li>
           ))}
         </ul>

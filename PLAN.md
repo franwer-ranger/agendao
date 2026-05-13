@@ -92,7 +92,7 @@ Sin esto, el cliente llama por teléfono y todo el esfuerzo del bloque 3 se cae.
 - [ ] Email de aviso al salón cuando entra una reserva nueva (opcional, configurable)
 - [ ] Email de confirmación de cancelación
 - [ ] Email de confirmación de reprogramación
-- [ ] *(v1.1)* Adjuntar archivo `.ics` para añadir al calendario
+- [ ] _(v1.1)_ Adjuntar archivo `.ics` para añadir al calendario
 
 ---
 

@@ -39,8 +39,8 @@ export function Stepper({ salonSlug }: { salonSlug: string }) {
                   isCurrent
                     ? 'bg-primary'
                     : isDone
-                    ? 'bg-primary/60'
-                    : 'bg-muted',
+                      ? 'bg-primary/60'
+                      : 'bg-muted',
                 )}
               />
             </li>

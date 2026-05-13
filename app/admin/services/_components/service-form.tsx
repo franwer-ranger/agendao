@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import { useActionState, useEffect } from 'react'
-import { Controller, useForm } from 'react-hook-form'
+import { Controller, useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import Link from 'next/link'
@@ -140,7 +140,7 @@ export function ServiceForm({
         </div>
         <Switch
           id="is_active"
-          checked={form.watch('is_active')}
+          checked={useWatch({ control: form.control, name: 'is_active' })}
           onCheckedChange={(v) => form.setValue('is_active', v)}
         />
       </div>
@@ -205,11 +205,7 @@ export function ServiceForm({
         error={errors.description?.message as string | undefined}
         hint="Opcional"
       >
-        <Textarea
-          id="description"
-          rows={3}
-          {...form.register('description')}
-        />
+        <Textarea id="description" rows={3} {...form.register('description')} />
       </Field>
 
       <div>
@@ -232,7 +228,11 @@ export function ServiceForm({
           <Link href="/admin/services">Cancelar</Link>
         </Button>
         <Button type="submit" disabled={pending}>
-          {pending ? 'Guardando…' : mode === 'edit' ? 'Guardar cambios' : 'Crear servicio'}
+          {pending
+            ? 'Guardando…'
+            : mode === 'edit'
+              ? 'Guardar cambios'
+              : 'Crear servicio'}
         </Button>
       </div>
     </form>

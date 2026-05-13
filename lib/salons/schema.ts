@@ -136,7 +136,8 @@ export const workingHoursSchema = z
         ctx.addIssue({
           code: 'custom',
           path: ['days', idx, 'opens_at'],
-          message: 'Define hora de apertura y cierre, o marca el día como cerrado',
+          message:
+            'Define hora de apertura y cierre, o marca el día como cerrado',
         })
         return
       }
@@ -206,8 +207,7 @@ export const bookingsFormSchema = z.object({
         .number()
         .int()
         .refine(
-          (v) =>
-            (SLOT_GRANULARITIES as readonly number[]).includes(v),
+          (v) => (SLOT_GRANULARITIES as readonly number[]).includes(v),
           'Valor no permitido (5, 10, 15, 20, 30 o 60)',
         ),
     ),

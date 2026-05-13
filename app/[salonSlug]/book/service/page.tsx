@@ -1,6 +1,6 @@
-import { notFound } from 'next/navigation'
 import { getSalonBySlug } from '@/lib/salons/queries'
 import { listPublicServices } from '@/lib/services/queries'
+import { notFound } from 'next/navigation'
 import { ServiceCard } from '../_components/service-card'
 
 export default async function ServiceStepPage({

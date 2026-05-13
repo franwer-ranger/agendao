@@ -144,9 +144,7 @@ export function WeeklyScheduleEditor({
     }
   }, [state])
 
-  function update(
-    updater: (m: Map<number, LocalShift[]>) => void,
-  ) {
+  function update(updater: (m: Map<number, LocalShift[]>) => void) {
     setByDay((prev) => {
       const next = new Map(prev)
       updater(next)
@@ -241,7 +239,9 @@ export function WeeklyScheduleEditor({
             onToggle={(on) => toggleDay(num, on)}
             onAdd={() => addShift(num)}
             onRemove={(key) => removeShift(num, key)}
-            onUpdate={(key, field, value) => updateShift(num, key, field, value)}
+            onUpdate={(key, field, value) =>
+              updateShift(num, key, field, value)
+            }
             onCopyToDays={(targets) => copyToDays(num, targets)}
           />
         ))}

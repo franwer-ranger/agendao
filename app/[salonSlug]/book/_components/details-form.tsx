@@ -1,9 +1,9 @@
 'use client'
 
-import * as React from 'react'
-import { useActionState, useEffect, useState } from 'react'
-import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import * as React from 'react'
+import { startTransition, useActionState, useEffect, useState } from 'react'
+import { useForm, useWatch } from 'react-hook-form'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -51,7 +51,7 @@ export function DetailsForm({
 
   const [state, formAction, pending] = useActionState(boundAction, initialState)
 
-  const form = useForm<DetailsFormValues>({
+  const form = useForm({
     resolver: zodResolver(detailsFormSchema),
     defaultValues: {
       displayName: '',
@@ -79,7 +79,7 @@ export function DetailsForm({
       }
     }
     if (state.retryStep === 'datetime') {
-      setRetryOpen(true)
+      startTransition(() => setRetryOpen(true))
     } else if (state.message) {
       toast.error(state.message)
     }
@@ -106,14 +106,13 @@ export function DetailsForm({
   })
 
   const errors = form.formState.errors
-  const emailValue = form.watch('email')
+  const emailValue = useWatch({ control: form.control, name: 'email' })
 
   const retryDestination = (() => {
     if (state.retryStep !== 'datetime') return ''
     const params = new URLSearchParams({
       serviceId: String(serviceId),
-      employeeId:
-        originalEmployeeChoice === 'any' ? 'any' : String(employeeId),
+      employeeId: originalEmployeeChoice === 'any' ? 'any' : String(employeeId),
     })
     if (state.preselectedDate)
       params.set('preselectedDate', state.preselectedDate)

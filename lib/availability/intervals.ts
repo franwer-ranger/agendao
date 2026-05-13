@@ -6,7 +6,9 @@ import type { Interval } from './types'
 export function normalize(list: Interval[]): Interval[] {
   const valid = list.filter((i) => i.end.getTime() > i.start.getTime())
   if (valid.length === 0) return []
-  const sorted = [...valid].sort((a, b) => a.start.getTime() - b.start.getTime())
+  const sorted = [...valid].sort(
+    (a, b) => a.start.getTime() - b.start.getTime(),
+  )
   const out: Interval[] = [sorted[0]]
   for (let i = 1; i < sorted.length; i++) {
     const prev = out[out.length - 1]

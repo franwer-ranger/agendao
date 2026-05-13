@@ -49,7 +49,10 @@ export function mapBookingError(err: PgLikeError): BookingError {
   // P0001 — RAISE EXCEPTION del trigger booking_items_validate.
   if (code === 'P0001') {
     if (/booking_outside_schedule/i.test(msg))
-      return { code: 'OUTSIDE_SCHEDULE', message: 'Fuera del horario del empleado.' }
+      return {
+        code: 'OUTSIDE_SCHEDULE',
+        message: 'Fuera del horario del empleado.',
+      }
     if (/booking_overlaps_break/i.test(msg))
       return { code: 'OVERLAPS_BREAK', message: 'Coincide con un descanso.' }
     if (/booking_overlaps_time_off/i.test(msg))

@@ -6,7 +6,12 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getCurrentSalon } from '@/lib/salon'
-import { parseEmployeeFormData, parseRecurringBreaksFormData, parseTimeOffCreateFormData, parseWeeklyScheduleFormData } from '@/lib/employees/schema'
+import {
+  parseEmployeeFormData,
+  parseRecurringBreaksFormData,
+  parseTimeOffCreateFormData,
+  parseWeeklyScheduleFormData,
+} from '@/lib/employees/schema'
 import { resolveUniqueEmployeeSlug } from '@/lib/employees/slug'
 import { addDaysIsoLocal, madridLocalDateToUtc } from '@/lib/time'
 
@@ -87,9 +92,11 @@ async function syncServiceAssignments(
   }
 
   if (toAdd.length > 0) {
-    const { error } = await supabase.from('employee_services').insert(
-      toAdd.map((service_id) => ({ employee_id: employeeId, service_id })),
-    )
+    const { error } = await supabase
+      .from('employee_services')
+      .insert(
+        toAdd.map((service_id) => ({ employee_id: employeeId, service_id })),
+      )
     if (error) throw error
   }
 }
@@ -200,7 +207,9 @@ export async function updateEmployeeAction(
   return { ok: true }
 }
 
-export async function setEmployeeActiveAction(formData: FormData): Promise<void> {
+export async function setEmployeeActiveAction(
+  formData: FormData,
+): Promise<void> {
   const idRaw = formData.get('id')
   const activeRaw = formData.get('active')
   const id = Number(idRaw)
@@ -436,8 +445,12 @@ async function findBookingConflicts(
     ends_at: string
     services: { name: string } | { name: string }[] | null
     bookings:
-      | { clients: { display_name: string } | { display_name: string }[] | null }
-      | { clients: { display_name: string } | { display_name: string }[] | null }[]
+      | {
+          clients: { display_name: string } | { display_name: string }[] | null
+        }
+      | {
+          clients: { display_name: string } | { display_name: string }[] | null
+        }[]
       | null
   }
 

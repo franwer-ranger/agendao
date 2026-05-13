@@ -42,11 +42,13 @@ export default async function AdminLayout({
               <SidebarMenuButton size="lg" asChild tooltip={salon.name}>
                 <Link href="/admin/services">
                   <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-                      <ClientIcon name="scissors" className="size-4" />
+                    <ClientIcon name="scissors" className="size-4" />
                   </div>
                   <div className="flex flex-col gap-0.5 leading-none">
                     <span className="font-semibold">{salon.name}</span>
-                    <span className="text-xs text-sidebar-foreground/60">Panel admin</span>
+                    <span className="text-xs text-sidebar-foreground/60">
+                      Panel admin
+                    </span>
                   </div>
                 </Link>
               </SidebarMenuButton>
@@ -61,7 +63,7 @@ export default async function AdminLayout({
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild tooltip="Servicios">
                     <Link href="/admin/services">
-                    <ClientIcon name="scissors" className="size-4" />
+                      <ClientIcon name="scissors" className="size-4" />
                       <span>Servicios</span>
                     </Link>
                   </SidebarMenuButton>

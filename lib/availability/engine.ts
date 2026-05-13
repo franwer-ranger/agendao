@@ -93,7 +93,10 @@ export function computeAvailability(
     avail = subtract(avail, empTimeOff)
 
     // 4. Closures.
-    avail = subtract(avail, raw.closures.map((c) => c.interval))
+    avail = subtract(
+      avail,
+      raw.closures.map((c) => c.interval),
+    )
 
     // 5. Reservas existentes del empleado.
     avail = subtract(avail, empBookings)
@@ -115,7 +118,10 @@ export function computeAvailability(
   if (cap !== null) {
     const sameService = bookingsByService.get(raw.service.id) ?? []
     filtered = candidates.filter((c) => {
-      const overlaps = countOverlaps(sameService.map((b) => b.interval), c)
+      const overlaps = countOverlaps(
+        sameService.map((b) => b.interval),
+        c,
+      )
       return overlaps < cap
     })
   }
@@ -136,7 +142,12 @@ export function computeAvailability(
       const [startMsStr] = key.split('|')
       const startMs = Number(startMsStr)
       const localDate = madridLocalDateOf(new Date(startMs))
-      const picked = pickEmployee(empIds, employeeById, loadByEmployeeByDay, localDate)
+      const picked = pickEmployee(
+        empIds,
+        employeeById,
+        loadByEmployeeByDay,
+        localDate,
+      )
       const cand = filtered.find(
         (c) => c.start.getTime() === startMs && c.employeeId === picked,
       )!
