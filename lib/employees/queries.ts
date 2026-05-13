@@ -57,6 +57,40 @@ export type ServiceOption = {
   is_active: boolean
 }
 
+export type PublicEmployeeRow = {
+  id: number
+  display_name: string
+  bio: string | null
+}
+
+// Empleados visibles en el paso 2 del flujo público de reserva: activos y
+// autorizados para el servicio elegido. Ordenados por display_order y nombre,
+// como el listing admin, para que la fila "más arriba" sea consistente.
+export async function listPublicEmployeesForService({
+  salonId,
+  serviceId,
+}: {
+  salonId: number
+  serviceId: number
+}): Promise<PublicEmployeeRow[]> {
+  const supabase = createAdminClient()
+  const { data, error } = await supabase
+    .from('employees')
+    .select('id, display_name, bio, employee_services!inner(service_id)')
+    .eq('salon_id', salonId)
+    .eq('is_active', true)
+    .eq('employee_services.service_id', serviceId)
+    .order('display_order', { ascending: true })
+    .order('display_name', { ascending: true })
+
+  if (error) throw error
+  return (data ?? []).map((row) => ({
+    id: row.id as number,
+    display_name: row.display_name as string,
+    bio: (row.bio as string | null) ?? null,
+  }))
+}
+
 // ─── Listado ───────────────────────────────────────────────────────────────
 
 export async function listEmployees({
