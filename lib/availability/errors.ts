@@ -13,6 +13,7 @@ export type BookingErrorCode =
   | 'CAPACITY_EXCEEDED'
   | 'SALON_MISMATCH'
   | 'WORKING_HOURS'
+  | 'TOO_CLOSE_TO_NOW'
   | 'UNKNOWN'
 
 export type BookingError = {
@@ -64,6 +65,11 @@ export function mapBookingError(err: PgLikeError): BookingError {
       return {
         code: 'SPANS_MULTIPLE_DAYS',
         message: 'La reserva no puede cruzar de un día al siguiente.',
+      }
+    if (/booking_too_close_to_now/i.test(msg))
+      return {
+        code: 'TOO_CLOSE_TO_NOW',
+        message: 'Ese horario ya está demasiado cerca para reservar online.',
       }
     if (/_salon_mismatch/i.test(msg))
       return {
