@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin'
+import { parseTstzRange } from '@/lib/availability/intervals'
 
 // ─── Tipos ─────────────────────────────────────────────────────────────────
 
@@ -184,22 +185,6 @@ export async function getRecurringBreaks(
 }
 
 // ─── Time-off ──────────────────────────────────────────────────────────────
-
-// PostgREST devuelve tstzrange como string '["2026-05-10T00:00:00+02:00","2026-05-19T00:00:00+02:00")'
-function parseTstzRange(
-  value: string,
-): { starts_at: string; ends_at: string } | null {
-  // Toleramos comillas dobles o sin comillas.
-  const m = value.match(
-    /^[[(]\s*"?([^",]+)"?\s*,\s*"?([^",)]+)"?\s*[\])]$/,
-  )
-  if (!m) return null
-  const [, lower, upper] = m
-  return {
-    starts_at: new Date(lower).toISOString(),
-    ends_at: new Date(upper).toISOString(),
-  }
-}
 
 export async function getTimeOff(
   employeeId: number,
