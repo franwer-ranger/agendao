@@ -3,10 +3,10 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 
-import { createAdminClient } from '@/lib/supabase/admin'
 import { getCurrentSalon } from '@/lib/salon'
 import { parseServiceFormData } from '@/lib/services/schema'
 import { resolveUniqueServiceSlug } from '@/lib/services/slug'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 export type ActionState = {
   ok: boolean

@@ -1,11 +1,9 @@
 'use server'
 
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
-import type { SupabaseClient } from '@supabase/supabase-js'
 
-import { createAdminClient } from '@/lib/supabase/admin'
-import { getCurrentSalon } from '@/lib/salon'
 import {
   parseEmployeeFormData,
   parseRecurringBreaksFormData,
@@ -13,7 +11,9 @@ import {
   parseWeeklyScheduleFormData,
 } from '@/lib/employees/schema'
 import { resolveUniqueEmployeeSlug } from '@/lib/employees/slug'
-import { addDaysIsoLocal, madridLocalDateToUtc } from '@/lib/time'
+import { getCurrentSalon } from '@/lib/salon'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { addDaysIsoLocal, salonDateToUtc } from '@/lib/time'
 
 export type ActionState = {
   ok: boolean
@@ -130,6 +130,7 @@ export async function createEmployeeAction(
       display_name: parsed.data.display_name,
       slug,
       bio: parsed.data.bio,
+      color_hex: parsed.data.color_hex,
       is_active: parsed.data.is_active,
       display_order: parsed.data.display_order,
     })
@@ -190,6 +191,7 @@ export async function updateEmployeeAction(
       display_name: parsed.data.display_name,
       slug,
       bio: parsed.data.bio,
+      color_hex: parsed.data.color_hex,
       is_active: parsed.data.is_active,
       display_order: parsed.data.display_order,
     })
@@ -345,8 +347,8 @@ export async function createEmployeeTimeOffAction(
   if (!ok) return { ok: false, message: 'Empleado no encontrado' }
 
   // Día completo: [starts_on 00:00 Madrid, ends_on+1 00:00 Madrid)
-  const startUtc = madridLocalDateToUtc(parsed.data.starts_on)
-  const endUtc = madridLocalDateToUtc(addDaysIsoLocal(parsed.data.ends_on, 1))
+  const startUtc = salonDateToUtc(parsed.data.starts_on)
+  const endUtc = salonDateToUtc(addDaysIsoLocal(parsed.data.ends_on, 1))
   const startIso = startUtc.toISOString()
   const endIso = endUtc.toISOString()
 

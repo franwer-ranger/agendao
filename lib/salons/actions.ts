@@ -14,7 +14,7 @@ import {
   validateLogoFile,
 } from '@/lib/salons/schema'
 import { deleteSalonLogo, uploadSalonLogo } from '@/lib/salons/storage'
-import { addDaysIsoLocal, madridLocalDateToUtc } from '@/lib/time'
+import { addDaysIsoLocal, salonDateToUtc } from '@/lib/time'
 
 export type ActionState = {
   ok: boolean
@@ -157,8 +157,8 @@ export async function createSalonClosureAction(
   const supabase = createAdminClient()
 
   // Día completo en TZ Madrid: [starts_on 00:00, ends_on+1 00:00).
-  const startUtc = madridLocalDateToUtc(parsed.data.starts_on)
-  const endUtc = madridLocalDateToUtc(addDaysIsoLocal(parsed.data.ends_on, 1))
+  const startUtc = salonDateToUtc(parsed.data.starts_on)
+  const endUtc = salonDateToUtc(addDaysIsoLocal(parsed.data.ends_on, 1))
   const startIso = startUtc.toISOString()
   const endIso = endUtc.toISOString()
 

@@ -84,7 +84,18 @@ export default async function EmployeesPage({
             ) : null}
             {rows.map((e) => (
               <TableRow key={e.id} className={e.is_active ? '' : 'opacity-60'}>
-                <TableCell className="font-medium">{e.display_name}</TableCell>
+                <TableCell className="font-medium">
+                  <div className="flex items-center gap-2">
+                    <span
+                      aria-hidden
+                      className="size-3 shrink-0 rounded-full border"
+                      style={{
+                        backgroundColor: e.color_hex ?? 'transparent',
+                      }}
+                    />
+                    {e.display_name}
+                  </div>
+                </TableCell>
                 <TableCell className="text-right tabular-nums">
                   {e.display_order}
                 </TableCell>

@@ -1,12 +1,23 @@
 'use client'
 
 import { useSyncExternalStore } from 'react'
-import { Scissors, Users, Store, type LucideIcon } from 'lucide-react'
+import {
+  Scissors,
+  Users,
+  Store,
+  Calendar,
+  ChevronLeft,
+  ChevronRight,
+  type LucideIcon,
+} from 'lucide-react'
 
 const iconMap: Record<string, LucideIcon> = {
   scissors: Scissors,
   users: Users,
   store: Store,
+  calendar: Calendar,
+  'chevron-left': ChevronLeft,
+  'chevron-right': ChevronRight,
 }
 
 interface ClientIconProps {

@@ -48,6 +48,7 @@ export default async function EditEmployeePage({
             id: employee.id,
             display_name: employee.display_name,
             bio: employee.bio ?? '',
+            color_hex: employee.color_hex ?? '',
             display_order: String(employee.display_order),
             is_active: employee.is_active,
             service_ids: employee.service_ids,

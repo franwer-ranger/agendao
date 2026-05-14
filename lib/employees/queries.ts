@@ -8,6 +8,7 @@ export type EmployeeListRow = {
   display_name: string
   is_active: boolean
   display_order: number
+  color_hex: string | null
   service_count: number
 }
 
@@ -18,6 +19,7 @@ export type EmployeeDetail = {
   bio: string | null
   is_active: boolean
   display_order: number
+  color_hex: string | null
   service_ids: number[]
 }
 
@@ -125,7 +127,7 @@ export async function listEmployees({
   let query = supabase
     .from('employees')
     .select(
-      'id, display_name, is_active, display_order, employee_services(count)',
+      'id, display_name, is_active, display_order, color_hex, employee_services(count)',
     )
     .eq('salon_id', salonId)
     .order('is_active', { ascending: false })
@@ -144,6 +146,7 @@ export async function listEmployees({
     display_name: row.display_name,
     is_active: row.is_active,
     display_order: row.display_order,
+    color_hex: row.color_hex,
     service_count:
       Array.isArray(row.employee_services) && row.employee_services[0]
         ? (row.employee_services[0] as { count: number }).count
@@ -162,7 +165,7 @@ export async function getEmployeeById(
   const { data, error } = await supabase
     .from('employees')
     .select(
-      'id, salon_id, display_name, bio, is_active, display_order, employee_services(service_id)',
+      'id, salon_id, display_name, bio, is_active, display_order, color_hex, employee_services(service_id)',
     )
     .eq('id', id)
     .eq('salon_id', salonId)
@@ -184,6 +187,7 @@ export async function getEmployeeById(
     bio: data.bio,
     is_active: data.is_active,
     display_order: data.display_order,
+    color_hex: data.color_hex,
     service_ids,
   }
 }

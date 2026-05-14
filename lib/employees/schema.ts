@@ -1,5 +1,8 @@
 import { z } from 'zod'
 
+// Mismo regex que el check de Postgres para `employees.color_hex`.
+const HEX_COLOR = /^#[0-9A-Fa-f]{6}$/
+
 // ─── Datos básicos del empleado ────────────────────────────────────────────
 // Inputs vienen de FormData (strings); validamos + coercemos.
 export const employeeFormSchema = z.object({
@@ -13,6 +16,17 @@ export const employeeFormSchema = z.object({
     .trim()
     .max(2000, 'Máximo 2000 caracteres')
     .transform((v) => (v.length > 0 ? v : null))
+    .nullable(),
+  color_hex: z
+    .string()
+    .trim()
+    .superRefine((v, ctx) => {
+      if (v === '') return
+      if (!HEX_COLOR.test(v)) {
+        ctx.addIssue({ code: 'custom', message: 'Color inválido (#RRGGBB)' })
+      }
+    })
+    .transform((v) => (v === '' ? null : v.toLowerCase()))
     .nullable(),
   // Vacío => 0; si no, entero 0–9999.
   display_order: z
@@ -44,6 +58,7 @@ export function parseEmployeeFormData(formData: FormData) {
   const raw = {
     display_name: formData.get('display_name') ?? '',
     bio: formData.get('bio') ?? '',
+    color_hex: formData.get('color_hex') ?? '',
     display_order: formData.get('display_order') ?? '',
     is_active: formData.get('is_active') ?? 'false',
     service_ids,
