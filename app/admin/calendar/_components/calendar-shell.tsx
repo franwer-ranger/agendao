@@ -20,11 +20,17 @@ import type {
 } from '@/lib/bookings/queries-calendar'
 import type { ServiceWithEmployees } from '@/lib/services/queries'
 import { addDaysIsoLocal, salonToday, startOfIsoWeek } from '@/lib/time'
+import { toast } from 'sonner'
+import { moveBookingAction } from '../_actions/move-booking'
 import { BookingDetailDialog } from './booking-detail-dialog'
-import { CalendarDayView } from './calendar-day-view'
+import {
+  CalendarDayView,
+  type MoveRequest,
+} from './calendar-day-view'
 import { CalendarWeekView } from './calendar-week-view'
 import { CreateBlockSheet } from './create-block-sheet'
 import { CreateBookingSheet } from './create-booking-sheet'
+import { MoveConfirmDialog, type MovePreview } from './move-confirm-dialog'
 
 export type EmployeeOption = {
   id: number
@@ -41,6 +47,7 @@ export function CalendarShell({
   blocks,
   services,
   salonTimezone,
+  slotGranularityMinutes,
 }: {
   date: string
   view: 'day' | 'week'
@@ -50,6 +57,7 @@ export function CalendarShell({
   blocks: CalendarBlock[]
   services: ServiceWithEmployees[]
   salonTimezone: string
+  slotGranularityMinutes: number
 }) {
   const router = useRouter()
   const pathname = usePathname()
@@ -59,6 +67,8 @@ export function CalendarShell({
   const [pickerOpen, setPickerOpen] = React.useState(false)
   const [createBookingOpen, setCreateBookingOpen] = React.useState(false)
   const [createBlockOpen, setCreateBlockOpen] = React.useState(false)
+  const [movePreview, setMovePreview] = React.useState<MovePreview | null>(null)
+  const [movePending, startMoveTransition] = React.useTransition()
 
   const buildHref = React.useCallback(
     (patch: Record<string, string | string[] | undefined>) => {
@@ -117,6 +127,49 @@ export function CalendarShell({
       : null
 
   const selectedDate = isoToDate(date)
+
+  // DnD → abre el dialog con el preview. La confirmación posterior dispara
+  // la server action; si falla, mantenemos los datos antiguos (el revalidate
+  // no llega a ocurrir).
+  const handleMoveRequest = (req: MoveRequest) => {
+    const booking = bookings.find((b) => b.bookingId === req.bookingId)
+    if (!booking) return
+    const newEmployee = req.newEmployeeId
+      ? employees.find((e) => e.id === req.newEmployeeId) ?? null
+      : null
+    setMovePreview({
+      bookingId: req.bookingId,
+      serviceName: booking.serviceName,
+      clientName: booking.clientName,
+      hasEmail: Boolean(booking.clientEmail),
+      previousStartsAt: booking.startsAt,
+      newStartsAt: req.newStartsAt,
+      newEmployeeName: newEmployee?.display_name ?? null,
+      newEmployeeId: req.newEmployeeId,
+    })
+  }
+
+  const handleMoveConfirm = (notify: boolean) => {
+    if (!movePreview) return
+    const payload = {
+      bookingId: movePreview.bookingId,
+      newStartsAt: movePreview.newStartsAt,
+      newEmployeeId: movePreview.newEmployeeId,
+      notifyClient: notify,
+    }
+    startMoveTransition(async () => {
+      const result = await moveBookingAction(payload)
+      if (result.ok) {
+        toast.success(
+          notify ? 'Cita movida y cliente notificado' : 'Cita movida',
+        )
+        setMovePreview(null)
+      } else {
+        toast.error(result.message)
+        setMovePreview(null)
+      }
+    })
+  }
 
   return (
     <div className="space-y-4">
@@ -279,7 +332,9 @@ export function CalendarShell({
               bookings={bookings}
               blocks={blocks}
               onBookingClick={(id) => setOpenBookingId(id)}
+              onMoveRequest={handleMoveRequest}
               salonTimezone={salonTimezone}
+              slotGranularityMinutes={slotGranularityMinutes}
             />
           ) : (
             <CalendarWeekView
@@ -331,6 +386,13 @@ export function CalendarShell({
         employees={employees}
         defaultDate={date}
         defaultEmployeeId={view === 'week' ? selectedEmployeeIds[0] : undefined}
+      />
+
+      <MoveConfirmDialog
+        preview={movePreview}
+        pending={movePending}
+        onConfirm={handleMoveConfirm}
+        onCancel={() => setMovePreview(null)}
       />
     </div>
   )

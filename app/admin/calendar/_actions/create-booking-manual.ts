@@ -92,8 +92,6 @@ export async function createBookingManualAction(
     clientNote: input.internal_note,
   })
 
-  console.log(result)
-
   if (!result.ok) {
     return { ok: false, message: friendlyMessageForCode(result.code) }
   }

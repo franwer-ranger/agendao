@@ -105,6 +105,7 @@ export default async function CalendarPage({
       blocks={blocks}
       services={services}
       salonTimezone={salon.timezone}
+      slotGranularityMinutes={salon.slot_granularity_minutes}
     />
   )
 }
