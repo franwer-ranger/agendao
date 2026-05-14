@@ -61,6 +61,14 @@ export default async function AdminLayout({
             <SidebarGroupContent>
               <SidebarMenu>
                 <SidebarMenuItem>
+                  <SidebarMenuButton asChild tooltip="Calendario">
+                    <Link href="/admin/calendar">
+                      <ClientIcon name="calendar" className="size-4" />
+                      <span>Calendario</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
                   <SidebarMenuButton asChild tooltip="Servicios">
                     <Link href="/admin/services">
                       <ClientIcon name="scissors" className="size-4" />

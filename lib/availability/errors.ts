@@ -8,6 +8,7 @@ export type BookingErrorCode =
   | 'OVERLAPS_BREAK'
   | 'OVERLAPS_TIME_OFF'
   | 'OVERLAPS_CLOSURE'
+  | 'OUTSIDE_SALON_HOURS'
   | 'EMPLOYEE_NOT_AUTHORIZED'
   | 'SPANS_MULTIPLE_DAYS'
   | 'CAPACITY_EXCEEDED'
@@ -59,6 +60,11 @@ export function mapBookingError(err: PgLikeError): BookingError {
       return { code: 'OVERLAPS_TIME_OFF', message: 'El empleado está ausente.' }
     if (/booking_overlaps_closure/i.test(msg))
       return { code: 'OVERLAPS_CLOSURE', message: 'El salón está cerrado.' }
+    if (/booking_outside_salon_hours/i.test(msg))
+      return {
+        code: 'OUTSIDE_SALON_HOURS',
+        message: 'La hora elegida está fuera del horario del salón.',
+      }
     if (/employee_not_authorized_for_service/i.test(msg))
       return {
         code: 'EMPLOYEE_NOT_AUTHORIZED',

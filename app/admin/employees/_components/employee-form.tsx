@@ -23,6 +23,8 @@ import { ServiceMultiselect } from './service-multiselect'
 
 // Espejo del schema servidor pero con primitivas nativas para que
 // react-hook-form muestre errores por campo sin serializar antes.
+const HEX_COLOR = /^#[0-9A-Fa-f]{6}$/
+
 const clientSchema = z.object({
   display_name: z
     .string()
@@ -30,6 +32,10 @@ const clientSchema = z.object({
     .min(1, 'El nombre es obligatorio')
     .max(120, 'Máximo 120 caracteres'),
   bio: z.string().trim().max(2000, 'Máximo 2000 caracteres'),
+  color_hex: z
+    .string()
+    .trim()
+    .refine((v) => v === '' || HEX_COLOR.test(v), 'Color inválido (#RRGGBB)'),
   display_order: z
     .string()
     .trim()
@@ -44,10 +50,23 @@ export type EmployeeFormDefaults = {
   id?: number
   display_name: string
   bio: string
+  color_hex: string
   display_order: string
   is_active: boolean
   service_ids: number[]
 }
+
+// Paleta sugerida para el calendario. Coincide con el backfill SQL y con la
+// que usan los servicios — así los empleados arrancan con tonos consistentes
+// y distinguibles. El usuario puede picar cualquier color libre además.
+const COLOR_PALETTE = [
+  '#4F46E5',
+  '#0EA5E9',
+  '#DB2777',
+  '#F59E0B',
+  '#10B981',
+  '#8B5CF6',
+]
 
 const initialState: ActionState = { ok: false }
 
@@ -75,6 +94,7 @@ export function EmployeeForm({
     defaultValues: {
       display_name: defaults.display_name,
       bio: defaults.bio,
+      color_hex: defaults.color_hex,
       display_order: defaults.display_order,
       is_active: defaults.is_active,
       service_ids: defaults.service_ids,
@@ -106,6 +126,7 @@ export function EmployeeForm({
     const fd = new FormData()
     fd.set('display_name', values.display_name)
     fd.set('bio', values.bio ?? '')
+    fd.set('color_hex', values.color_hex ?? '')
     fd.set('display_order', values.display_order)
     fd.set('is_active', values.is_active ? 'true' : 'false')
     for (const id of values.service_ids) {
@@ -180,6 +201,18 @@ export function EmployeeForm({
         <Textarea id="bio" rows={3} {...form.register('bio')} />
       </Field>
 
+      <Controller
+        control={form.control}
+        name="color_hex"
+        render={({ field }) => (
+          <ColorField
+            value={field.value}
+            onChange={field.onChange}
+            error={errors.color_hex?.message}
+          />
+        )}
+      />
+
       <div>
         <Label className="mb-2 block">Servicios que puede realizar</Label>
         <Controller
@@ -233,6 +266,76 @@ function Field({
       ) : hint ? (
         <p className="text-xs text-muted-foreground">{hint}</p>
       ) : null}
+    </div>
+  )
+}
+
+function ColorField({
+  value,
+  onChange,
+  error,
+}: {
+  value: string
+  onChange: (v: string) => void
+  error?: string
+}) {
+  const normalized = value && /^#[0-9A-Fa-f]{6}$/.test(value) ? value : ''
+  const swatchValue = normalized || '#cbd5e1'
+
+  return (
+    <div className="flex flex-col gap-2">
+      <Label htmlFor="color_hex">Color en el calendario</Label>
+      <div className="flex flex-wrap items-center gap-2">
+        {COLOR_PALETTE.map((hex) => {
+          const selected = normalized.toLowerCase() === hex.toLowerCase()
+          return (
+            <button
+              key={hex}
+              type="button"
+              onClick={() => onChange(hex)}
+              aria-label={`Color ${hex}`}
+              aria-pressed={selected}
+              className={`size-7 rounded-full border transition ${
+                selected
+                  ? 'ring-2 ring-offset-2 ring-foreground'
+                  : 'border-border'
+              }`}
+              style={{ backgroundColor: hex }}
+            />
+          )
+        })}
+        <div className="ml-1 flex items-center gap-2 rounded-md border px-2 py-1">
+          <input
+            id="color_hex"
+            type="color"
+            value={swatchValue}
+            onChange={(e) => onChange(e.target.value)}
+            className="size-6 cursor-pointer rounded border-0 bg-transparent p-0"
+            aria-label="Color personalizado"
+          />
+          <span className="text-xs text-muted-foreground tabular-nums">
+            {normalized ? normalized.toUpperCase() : 'Sin color'}
+          </span>
+          {normalized ? (
+            <button
+              type="button"
+              onClick={() => onChange('')}
+              className="text-xs text-muted-foreground hover:text-foreground"
+              aria-label="Quitar color"
+            >
+              ✕
+            </button>
+          ) : null}
+        </div>
+      </div>
+      {error ? (
+        <p className="text-xs text-destructive">{error}</p>
+      ) : (
+        <p className="text-xs text-muted-foreground">
+          Se usa para identificar visualmente las citas de este empleado en el
+          calendario.
+        </p>
+      )}
     </div>
   )
 }

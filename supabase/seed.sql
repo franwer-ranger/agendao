@@ -15,10 +15,10 @@ begin
   values ('demo', 'Salón Demo', 'Europe/Madrid', 'es-ES', 15)
   returning id into v_salon_id;
 
-  insert into employees (salon_id, display_name, slug, display_order, bio)
+  insert into employees (salon_id, display_name, slug, display_order, bio, color_hex)
   values
-    (v_salon_id, 'Marina Pérez', 'marina', 0, 'Especialista en color y mechas.'),
-    (v_salon_id, 'Ana Ruiz',     'ana',    1, 'Cortes y peinados de novia.');
+    (v_salon_id, 'Marina Pérez', 'marina', 0, 'Especialista en color y mechas.', '#4F46E5'),
+    (v_salon_id, 'Ana Ruiz',     'ana',    1, 'Cortes y peinados de novia.',     '#0EA5E9');
 
   select id into v_marina from employees where salon_id = v_salon_id and slug = 'marina';
   select id into v_ana    from employees where salon_id = v_salon_id and slug = 'ana';
