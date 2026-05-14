@@ -1,19 +1,20 @@
-import { NextResponse } from 'next/server'
 import { runReminderBatch } from '@/lib/email/triggers/send-reminders'
+import { NextResponse } from 'next/server'
 
 // Endpoint que dispara los recordatorios 24h antes.
 //
-// En producción lo invoca Vercel Cron cada hora (ver `vercel.json`). Vercel
-// añade el header `Authorization: Bearer $CRON_SECRET` automáticamente, así
-// que validar contra ese secreto basta para rechazar tráfico ajeno.
+// NOTA: Vercel Hobby solo permite crons diarios (1/día). Mientras estemos en
+// plan free, NO hay `vercel.json` con schedule — el endpoint queda colgado y
+// se invoca a mano o desde un cron externo (cron-job.org, GitHub Actions, etc.).
+// La autenticación con `$CRON_SECRET` sigue activa para que solo lo dispare
+// quien deba.
 //
-// En dev, donde no corre el cron de Vercel, también aceptamos `?secret=` en la
-// query para que puedas lanzarlo a mano:
-//
+// Para lanzarlo a mano:
+//   curl -i "https://TU_DOMINIO/api/cron/send-reminders?secret=$CRON_SECRET"
 //   curl -i "http://localhost:3000/api/cron/send-reminders?secret=$CRON_SECRET"
 //
-// El handler nunca dura más de lo necesario: la ventana de búsqueda es de 2h y
-// el volumen de reservas confirmadas en ese rango es naturalmente acotado.
+// Cuando pasemos a Vercel Pro (o equivalente), basta con re-añadir un
+// `vercel.json` con `{"crons":[{"path":"/api/cron/send-reminders","schedule":"0 * * * *"}]}`.
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
