@@ -29,7 +29,12 @@ export function BookingCancellationEmail({ ctx, cancelledBy }: Props) {
       cancellationPolicyText={ctx.salon.cancellationPolicyText}
     >
       <Text
-        style={{ margin: 0, fontSize: 20, fontWeight: 600, color: emailColors.accent }}
+        style={{
+          margin: 0,
+          fontSize: 20,
+          fontWeight: 600,
+          color: emailColors.accent,
+        }}
       >
         {heading}
       </Text>

@@ -20,7 +20,9 @@ const eslintConfig = defineConfig([
         },
       ],
       'react-hooks/exhaustive-deps': 'off',
-      quotes: ['error', 'single'],
+      // `avoidEscape` permite `"foo's"` cuando el string contiene `'`,
+      // alineando con la salida que produce Prettier (`singleQuote: true`).
+      quotes: ['error', 'single', { avoidEscape: true }],
       semi: ['error', 'never'],
     },
   },

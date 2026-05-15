@@ -6,7 +6,7 @@ export function formatBookingDateTime(
   isoUtc: string,
   timezone: string,
 ): string {
-  const date = formatInTimeZone(isoUtc, timezone, 'EEEE, d \'de\' MMMM', {
+  const date = formatInTimeZone(isoUtc, timezone, "EEEE, d 'de' MMMM", {
     locale: es,
   })
   const time = formatInTimeZone(isoUtc, timezone, 'HH:mm', { locale: es })
@@ -15,7 +15,7 @@ export function formatBookingDateTime(
 
 export function formatBookingDate(isoUtc: string, timezone: string): string {
   return capitalize(
-    formatInTimeZone(isoUtc, timezone, 'EEEE, d \'de\' MMMM \'de\' yyyy', {
+    formatInTimeZone(isoUtc, timezone, "EEEE, d 'de' MMMM 'de' yyyy", {
       locale: es,
     }),
   )

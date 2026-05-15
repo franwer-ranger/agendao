@@ -59,9 +59,7 @@ export async function loadBookingEmailContext(
   const client = Array.isArray(booking.client)
     ? booking.client[0]
     : booking.client
-  const salon = Array.isArray(booking.salon)
-    ? booking.salon[0]
-    : booking.salon
+  const salon = Array.isArray(booking.salon) ? booking.salon[0] : booking.salon
   const itemsRaw = booking.items as Array<{
     position: number
     starts_at: string
@@ -117,9 +115,7 @@ export async function loadBookingEmailContext(
 // Carga solo lo mínimo del salón para tomar la decisión de notificación. Útil
 // cuando solo necesitas saber si el flag está activo, sin pagar la query
 // completa.
-export async function getSalonNotificationConfig(
-  salonId: number,
-): Promise<{
+export async function getSalonNotificationConfig(salonId: number): Promise<{
   notifySalon: boolean
   contactEmail: string | null
 } | null> {

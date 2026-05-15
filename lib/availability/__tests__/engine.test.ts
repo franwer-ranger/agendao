@@ -160,12 +160,12 @@ describe('computeAvailability — slot que termina exactamente al cierre', () =>
     )
 
     // 19:00 Madrid (verano) = 17:00 UTC. Verificamos que está en la lista.
-    const has1900 = slots.some(
-      (s) => s.startsAt === '2026-05-22T17:00:00.000Z',
-    )
+    const has1900 = slots.some((s) => s.startsAt === '2026-05-22T17:00:00.000Z')
     expect(has1900).toBe(true)
     // Y que su `endsAt` cae justo al cierre (20:00 Madrid = 18:00 UTC).
-    const slot1900 = slots.find((s) => s.startsAt === '2026-05-22T17:00:00.000Z')!
+    const slot1900 = slots.find(
+      (s) => s.startsAt === '2026-05-22T17:00:00.000Z',
+    )!
     expect(slot1900.endsAt).toBe('2026-05-22T18:00:00.000Z')
   })
 
@@ -177,9 +177,7 @@ describe('computeAvailability — slot que termina exactamente al cierre', () =>
       { from: FRIDAY, to: FRIDAY, employeeFilter: MARINA.id },
       NOW,
     )
-    const has1900 = slots.some(
-      (s) => s.startsAt === '2026-05-22T17:00:00.000Z',
-    )
+    const has1900 = slots.some((s) => s.startsAt === '2026-05-22T17:00:00.000Z')
     expect(has1900).toBe(false)
     // El último slot que cabe (60min) empieza a las 18:00 Madrid = 16:00 UTC.
     const last = slots.at(-1)
@@ -213,9 +211,7 @@ describe('computeAvailability — solape con reservas existentes', () => {
       NOW,
     )
     // El slot 17:00–18:00 ya no aparece para Marina.
-    const has1700 = slots.some(
-      (s) => s.startsAt === '2026-05-22T15:00:00.000Z',
-    )
+    const has1700 = slots.some((s) => s.startsAt === '2026-05-22T15:00:00.000Z')
     expect(has1700).toBe(false)
   })
 

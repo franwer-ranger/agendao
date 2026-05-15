@@ -85,26 +85,24 @@ export async function listBookingsInRange({
     ends_at: string
     booking_status: string
     services: { name: string } | { name: string }[] | null
-    bookings:
-      | {
-          public_id: string
-          internal_note: string | null
-          clients:
-            | {
-                id: number
-                display_name: string
-                phone: string | null
-                email: string | null
-              }
-            | {
-                id: number
-                display_name: string
-                phone: string | null
-                email: string | null
-              }[]
-            | null
-        }
-      | null
+    bookings: {
+      public_id: string
+      internal_note: string | null
+      clients:
+        | {
+            id: number
+            display_name: string
+            phone: string | null
+            email: string | null
+          }
+        | {
+            id: number
+            display_name: string
+            phone: string | null
+            email: string | null
+          }[]
+        | null
+    } | null
   }
 
   return ((data ?? []) as unknown as Row[]).map((row) => {

@@ -1,8 +1,5 @@
 import { Section, Text } from '@react-email/components'
-import {
-  formatBookingDateTime,
-  formatPriceEur,
-} from '@/lib/email/format'
+import { formatBookingDateTime, formatPriceEur } from '@/lib/email/format'
 import type { BookingEmailContext } from '@/lib/email/types'
 import { emailColors } from './layout'
 

@@ -3,11 +3,7 @@ import type { BookingEmailContext } from '@/lib/email/types'
 import { BookingSummary } from './_shared/booking-summary'
 import { EmailLayout, emailColors } from './_shared/layout'
 
-export function BookingReminderEmail({
-  ctx,
-}: {
-  ctx: BookingEmailContext
-}) {
+export function BookingReminderEmail({ ctx }: { ctx: BookingEmailContext }) {
   return (
     <EmailLayout
       preview={`Recordatorio: mañana tienes cita en ${ctx.salon.name}`}
@@ -18,7 +14,12 @@ export function BookingReminderEmail({
       cancellationPolicyText={ctx.salon.cancellationPolicyText}
     >
       <Text
-        style={{ margin: 0, fontSize: 20, fontWeight: 600, color: emailColors.accent }}
+        style={{
+          margin: 0,
+          fontSize: 20,
+          fontWeight: 600,
+          color: emailColors.accent,
+        }}
       >
         Tu cita es mañana
       </Text>
@@ -30,8 +31,8 @@ export function BookingReminderEmail({
           lineHeight: 1.6,
         }}
       >
-        Hola {ctx.client.displayName}, te recordamos que mañana te
-        esperamos en {ctx.salon.name}.
+        Hola {ctx.client.displayName}, te recordamos que mañana te esperamos en{' '}
+        {ctx.salon.name}.
       </Text>
 
       <BookingSummary booking={ctx.booking} timezone={ctx.salon.timezone} />

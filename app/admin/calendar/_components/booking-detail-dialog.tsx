@@ -167,13 +167,7 @@ export function BookingDetailDialog({
   )
 }
 
-function Field({
-  label,
-  value,
-}: {
-  label: string
-  value: React.ReactNode
-}) {
+function Field({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex items-start justify-between gap-3">
       <span className="text-muted-foreground">{label}</span>

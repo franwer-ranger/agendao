@@ -71,7 +71,9 @@ export function CreateBookingSheet({
       service_id: defaultServiceId ? String(defaultServiceId) : '',
       employee_id: defaultEmployeeId
         ? String(defaultEmployeeId)
-        : (employees[0]?.id ? String(employees[0].id) : ''),
+        : employees[0]?.id
+          ? String(employees[0].id)
+          : '',
       date: defaultDate,
       starts_at: '10:00',
       client_name: '',
@@ -88,7 +90,9 @@ export function CreateBookingSheet({
         service_id: defaultServiceId ? String(defaultServiceId) : '',
         employee_id: defaultEmployeeId
           ? String(defaultEmployeeId)
-          : (employees[0]?.id ? String(employees[0].id) : ''),
+          : employees[0]?.id
+            ? String(employees[0].id)
+            : '',
         date: defaultDate,
         starts_at: '10:00',
         client_name: '',
@@ -102,7 +106,10 @@ export function CreateBookingSheet({
 
   // Cuando cambia el servicio, si el empleado seleccionado no puede hacerlo,
   // ajustamos a uno autorizado.
-  const watchedServiceId = useWatch({ control: form.control, name: 'service_id' })
+  const watchedServiceId = useWatch({
+    control: form.control,
+    name: 'service_id',
+  })
   const selectedService = services.find(
     (s) => String(s.id) === watchedServiceId,
   )
@@ -152,10 +159,7 @@ export function CreateBookingSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="right"
-        className="w-full overflow-y-auto sm:max-w-md"
-      >
+      <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-md">
         <SheetHeader>
           <SheetTitle>Nueva reserva</SheetTitle>
           <SheetDescription>
