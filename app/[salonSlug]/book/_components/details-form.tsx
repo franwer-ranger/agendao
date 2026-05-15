@@ -61,6 +61,46 @@ export function DetailsForm({
     },
   })
 
+  // Persistimos los datos del form en sessionStorage para que sobrevivan al
+  // round-trip por `/datetime` cuando el usuario tiene que elegir otra hora
+  // (RetryDialog). Sin esto, volver a `/details` monta un form vacío y el
+  // usuario pierde lo que había rellenado.
+  const storageKey = React.useMemo(
+    () => `agendao:booking-details:${salonSlug}`,
+    [salonSlug],
+  )
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
+      const raw = window.sessionStorage.getItem(storageKey)
+      if (!raw) return
+      const parsed = JSON.parse(raw) as Partial<DetailsFormValues> | null
+      if (!parsed || typeof parsed !== 'object') return
+      form.reset({
+        displayName:
+          typeof parsed.displayName === 'string' ? parsed.displayName : '',
+        phone: typeof parsed.phone === 'string' ? parsed.phone : '',
+        email: typeof parsed.email === 'string' ? parsed.email : '',
+        clientNote:
+          typeof parsed.clientNote === 'string' ? parsed.clientNote : '',
+      })
+    } catch {
+      // Si sessionStorage falla (modo privado, cuota), seguimos con form vacío.
+    }
+    // Solo en mount: no queremos pisar lo que el usuario teclea después.
+  }, [])
+
+  const watched = useWatch({ control: form.control })
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
+      window.sessionStorage.setItem(storageKey, JSON.stringify(watched))
+    } catch {
+      // Silencioso: no degradar la experiencia si el storage no está disponible.
+    }
+  }, [watched, storageKey])
+
   const [acceptTerms, setAcceptTerms] = useState(false)
   const [retryOpen, setRetryOpen] = useState(false)
 
