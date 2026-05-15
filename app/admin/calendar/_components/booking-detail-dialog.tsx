@@ -15,43 +15,19 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Separator } from '@/components/ui/separator'
-import type {
-  CalendarBookingItem,
-  CalendarBookingStatus,
-} from '@/lib/bookings/queries-calendar'
+import type { CalendarBookingItem } from '@/lib/bookings/queries-calendar'
+import { setBookingStatusAction } from '@/lib/bookings/status-actions'
 import {
-  setBookingStatusAction,
+  STATUS_LABEL,
+  STATUS_VARIANT,
   type BookingStatus,
-} from '@/lib/bookings/status-actions'
+} from '@/lib/bookings/status'
 import { formatSalonDate, formatSalonTime } from '@/lib/time'
-
-const STATUS_LABEL: Record<CalendarBookingStatus, string> = {
-  pending: 'Pendiente',
-  confirmed: 'Confirmada',
-  in_progress: 'En curso',
-  completed: 'Completada',
-  cancelled_client: 'Cancelada (cliente)',
-  cancelled_salon: 'Cancelada (salón)',
-  no_show: 'No-show',
-}
-
-const STATUS_VARIANT: Record<
-  CalendarBookingStatus,
-  'default' | 'secondary' | 'outline' | 'destructive'
-> = {
-  pending: 'outline',
-  confirmed: 'secondary',
-  in_progress: 'default',
-  completed: 'secondary',
-  cancelled_client: 'destructive',
-  cancelled_salon: 'destructive',
-  no_show: 'destructive',
-}
 
 // Transiciones que un admin puede ejecutar desde el modal. El orden importa:
 // la primera acción "positiva" se renderiza primero (a la izquierda).
 const ACTIONS_BY_STATUS: Record<
-  CalendarBookingStatus,
+  BookingStatus,
   Array<{ to: BookingStatus; label: string; variant?: 'destructive' }>
 > = {
   pending: [

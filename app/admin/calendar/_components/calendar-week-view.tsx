@@ -3,8 +3,8 @@
 import type {
   CalendarBlock,
   CalendarBookingItem,
-  CalendarBookingStatus,
 } from '@/lib/bookings/queries-calendar'
+import type { BookingStatus } from '@/lib/bookings/status'
 import {
   addDaysIsoLocal,
   formatSalonTime,
@@ -252,7 +252,7 @@ function BookingMini({
   )
 }
 
-function statusOpacity(s: CalendarBookingStatus): number {
+function statusOpacity(s: BookingStatus): number {
   switch (s) {
     case 'completed':
       return 0.65

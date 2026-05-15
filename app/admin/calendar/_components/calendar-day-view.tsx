@@ -14,8 +14,8 @@ import { CSS } from '@dnd-kit/utilities'
 import type {
   CalendarBlock,
   CalendarBookingItem,
-  CalendarBookingStatus,
 } from '@/lib/bookings/queries-calendar'
+import { ACTIVE_BOOKING_STATUSES, type BookingStatus } from '@/lib/bookings/status'
 import {
   formatSalonTime,
   minutesFromSalonMidnight,
@@ -31,11 +31,7 @@ const DAY_START_MIN = 8 * 60 // 08:00
 const DAY_END_MIN = 23.5 * 60 // 23:30
 const PX_PER_MIN = 1.2 // 60min ≈ 72px
 
-const ACTIVE_STATUSES: CalendarBookingStatus[] = [
-  'pending',
-  'confirmed',
-  'in_progress',
-]
+const ACTIVE_STATUSES = ACTIVE_BOOKING_STATUSES
 
 // Padding superior dentro del rail / columnas para que el primer label de
 // horas no se solape con el header.
@@ -368,7 +364,7 @@ function BookingBlock({
   )
 }
 
-const STATUS_LABEL: Partial<Record<CalendarBookingStatus, string>> = {
+const STATUS_LABEL: Partial<Record<BookingStatus, string>> = {
   completed: 'Completada',
   cancelled_client: 'Cancelada (cliente)',
   cancelled_salon: 'Cancelada (salón)',
@@ -377,7 +373,7 @@ const STATUS_LABEL: Partial<Record<CalendarBookingStatus, string>> = {
   pending: 'Pendiente',
 }
 
-function statusOpacity(s: CalendarBookingStatus): number {
+function statusOpacity(s: BookingStatus): number {
   switch (s) {
     case 'completed':
       return 0.65

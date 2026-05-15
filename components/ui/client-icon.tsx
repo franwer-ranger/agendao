@@ -8,6 +8,7 @@ import {
   Calendar,
   ChevronLeft,
   ChevronRight,
+  Clock,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -16,6 +17,7 @@ const iconMap: Record<string, LucideIcon> = {
   users: Users,
   store: Store,
   calendar: Calendar,
+  clock: Clock,
   'chevron-left': ChevronLeft,
   'chevron-right': ChevronRight,
 }
