@@ -170,7 +170,7 @@ export function CalendarWeekView({
               return (
                 <div
                   key={`block-${b.id}-${d}`}
-                  className="absolute inset-x-1 rounded-sm border border-muted-foreground/30 bg-[repeating-linear-gradient(45deg,_var(--muted)_0_6px,_transparent_6px_12px)] p-1 text-[10px] text-muted-foreground"
+                  className="absolute inset-x-1 select-none rounded-sm border border-muted-foreground/30 bg-[repeating-linear-gradient(45deg,_var(--muted)_0_6px,_transparent_6px_12px)] p-1 text-[10px] text-muted-foreground"
                   style={{ top: pos.top, height: pos.height }}
                   title={b.reason + (b.note ? ` — ${b.note}` : '')}
                 >
@@ -231,7 +231,7 @@ function BookingMini({
     <button
       type="button"
       onClick={onClick}
-      className="absolute inset-x-1 overflow-hidden rounded-sm border px-1 py-0.5 text-left text-[10px] leading-tight text-white shadow-sm transition hover:brightness-110"
+      className="absolute inset-x-1 select-none overflow-hidden rounded-sm border px-1 py-0.5 text-left text-[10px] leading-tight text-white shadow-sm transition hover:brightness-110"
       style={{
         top,
         height,

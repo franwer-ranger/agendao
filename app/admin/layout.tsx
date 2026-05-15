@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers'
-import Link from 'next/link'
 import { ClientIcon } from '@/components/ui/client-icon'
+import { SidebarNavLink } from './_components/sidebar-nav-link'
 import { getCurrentSalon } from '@/lib/salon'
 import { Toaster } from '@/components/ui/sonner'
 import { Separator } from '@/components/ui/separator'
@@ -40,7 +40,7 @@ export default async function AdminLayout({
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton size="lg" asChild tooltip={salon.name}>
-                <Link href="/admin/services">
+                <SidebarNavLink href="/admin/services">
                   <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
                     <ClientIcon name="scissors" className="size-4" />
                   </div>
@@ -50,7 +50,7 @@ export default async function AdminLayout({
                       Panel admin
                     </span>
                   </div>
-                </Link>
+                </SidebarNavLink>
               </SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarMenu>
@@ -62,42 +62,42 @@ export default async function AdminLayout({
               <SidebarMenu>
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild tooltip="Hoy">
-                    <Link href="/admin/today">
+                    <SidebarNavLink href="/admin/today">
                       <ClientIcon name="clock" className="size-4" />
                       <span>Hoy</span>
-                    </Link>
+                    </SidebarNavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild tooltip="Calendario">
-                    <Link href="/admin/calendar">
+                    <SidebarNavLink href="/admin/calendar">
                       <ClientIcon name="calendar" className="size-4" />
                       <span>Calendario</span>
-                    </Link>
+                    </SidebarNavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild tooltip="Servicios">
-                    <Link href="/admin/services">
+                    <SidebarNavLink href="/admin/services">
                       <ClientIcon name="scissors" className="size-4" />
                       <span>Servicios</span>
-                    </Link>
+                    </SidebarNavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild tooltip="Empleados">
-                    <Link href="/admin/employees">
+                    <SidebarNavLink href="/admin/employees">
                       <ClientIcon name="users" className="size-4" />
                       <span>Empleados</span>
-                    </Link>
+                    </SidebarNavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild tooltip="Salón">
-                    <Link href="/admin/salon">
+                    <SidebarNavLink href="/admin/salon">
                       <ClientIcon name="store" className="size-4" />
                       <span>Salón</span>
-                    </Link>
+                    </SidebarNavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               </SidebarMenu>

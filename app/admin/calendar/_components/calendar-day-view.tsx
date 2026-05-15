@@ -15,7 +15,10 @@ import type {
   CalendarBlock,
   CalendarBookingItem,
 } from '@/lib/bookings/queries-calendar'
-import { ACTIVE_BOOKING_STATUSES, type BookingStatus } from '@/lib/bookings/status'
+import {
+  ACTIVE_BOOKING_STATUSES,
+  type BookingStatus,
+} from '@/lib/bookings/status'
 import {
   formatSalonTime,
   minutesFromSalonMidnight,
@@ -249,7 +252,7 @@ function EmployeeColumn({
         return (
           <div
             key={`block-${b.id}`}
-            className="absolute inset-x-1 rounded-sm border border-muted-foreground/30 bg-[repeating-linear-gradient(45deg,var(--muted)_0_6px,transparent_6px_12px)] p-1 text-[10px] text-muted-foreground"
+            className="absolute inset-x-1 select-none rounded-sm border border-muted-foreground/30 bg-[repeating-linear-gradient(45deg,var(--muted)_0_6px,transparent_6px_12px)] p-1 text-[10px] text-muted-foreground"
             style={{ top: pos.top, height: pos.height }}
             title={b.reason + (b.note ? ` — ${b.note}` : '')}
           >
@@ -323,7 +326,7 @@ function BookingBlock({
       onClick={onClick}
       {...attributes}
       {...listeners}
-      className={`absolute inset-x-1 overflow-hidden rounded-sm border px-1.5 py-1 text-left text-[11px] leading-tight text-white shadow-sm transition-[filter,opacity,box-shadow] hover:brightness-110 ${
+      className={`absolute inset-x-1 select-none overflow-hidden rounded-sm border px-1.5 py-1 text-left text-[11px] leading-tight text-white shadow-sm transition-[filter,opacity,box-shadow] hover:brightness-110 ${
         booking.status === 'in_progress'
           ? 'ring-2 ring-offset-1 ring-amber-300 animate-pulse'
           : ''
