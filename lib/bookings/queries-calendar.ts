@@ -1,14 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { parseTstzRange } from '@/lib/availability/intervals'
-
-export type CalendarBookingStatus =
-  | 'pending'
-  | 'confirmed'
-  | 'in_progress'
-  | 'completed'
-  | 'cancelled_client'
-  | 'cancelled_salon'
-  | 'no_show'
+import type { BookingStatus } from '@/lib/bookings/status'
 
 // Una "tarjeta" en el calendario corresponde a un `booking_items.position = 0`
 // con los datos enriquecidos para pintar. Si una reserva tiene varios items
@@ -24,7 +16,7 @@ export type CalendarBookingItem = {
   serviceName: string
   startsAt: string // ISO UTC
   endsAt: string
-  status: CalendarBookingStatus
+  status: BookingStatus
   clientName: string
   clientPhone: string | null
   clientEmail: string | null
@@ -133,7 +125,7 @@ export async function listBookingsInRange({
       serviceName: service?.name ?? '—',
       startsAt: row.starts_at,
       endsAt: row.ends_at,
-      status: row.booking_status as CalendarBookingStatus,
+      status: row.booking_status as BookingStatus,
       clientName: client?.display_name ?? '—',
       clientPhone: client?.phone ?? null,
       clientEmail: client?.email ?? null,

@@ -3,16 +3,8 @@
 import { revalidatePath } from 'next/cache'
 
 import { getCurrentSalon } from '@/lib/salon'
+import type { BookingStatus } from '@/lib/bookings/status'
 import { createAdminClient } from '@/lib/supabase/admin'
-
-export type BookingStatus =
-  | 'pending'
-  | 'confirmed'
-  | 'in_progress'
-  | 'completed'
-  | 'cancelled_client'
-  | 'cancelled_salon'
-  | 'no_show'
 
 export type StatusActionResult = { ok: true } | { ok: false; message: string }
 
