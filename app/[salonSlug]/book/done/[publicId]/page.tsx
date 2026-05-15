@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { getPublicBookingByPublicId } from '@/lib/bookings/queries'
 import { getSalonBySlug } from '@/lib/salons/queries'
 import { BookingSummary } from '../../_components/summary'
+import { ClearBookingFormStorage } from '../../_components/clear-booking-form-storage'
 
 // El publicId es un UUID v4. Cualquier cosa que no encaje devuelve 404 sin
 // llegar a tocar la BD.
@@ -35,6 +36,7 @@ export default async function DoneStepPage({
       aria-labelledby="done-step-heading"
       className="space-y-5 text-center"
     >
+      <ClearBookingFormStorage salonSlug={salonSlug} />
       <div className="flex flex-col items-center gap-3">
         <CheckCircle2
           aria-hidden

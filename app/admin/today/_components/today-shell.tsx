@@ -61,11 +61,9 @@ export function TodayShell({
   const inProgress = visible.find((b) => b.status === 'in_progress') ?? null
   const nextUp = inProgress
     ? null
-    : visible.find(
-        (b) =>
-          isActiveStatus(b.status) &&
-          new Date(b.endsAt).getTime() > nowMs,
-      ) ?? null
+    : (visible.find(
+        (b) => isActiveStatus(b.status) && new Date(b.endsAt).getTime() > nowMs,
+      ) ?? null)
 
   // Retrasos: por empleado, una cita confirmed cuyo `startsAt <= now` y cuya
   // anterior del mismo empleado sigue activa (no completed/cancelled/no_show).
@@ -84,7 +82,11 @@ export function TodayShell({
         if (cur.status !== 'confirmed') continue
         if (new Date(cur.startsAt).getTime() > nowMs) continue
         const prev = arr[i - 1]
-        if (prev && isActiveStatus(prev.status) && prev.status !== 'completed') {
+        if (
+          prev &&
+          isActiveStatus(prev.status) &&
+          prev.status !== 'completed'
+        ) {
           out.add(cur.itemId)
         }
       }
@@ -226,7 +228,9 @@ function EmptyState({ date, show }: { date: string; show: 'active' | 'all' }) {
     <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
       <p>
         Sin citas {show === 'active' ? 'activas' : 'registradas'} para{' '}
-        <span className="capitalize">{formatSalonDate(`${date}T12:00:00Z`)}</span>
+        <span className="capitalize">
+          {formatSalonDate(`${date}T12:00:00Z`)}
+        </span>
         .
       </p>
       <Label className="sr-only" htmlFor="empty-noop">

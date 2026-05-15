@@ -23,10 +23,7 @@ import { addDaysIsoLocal, salonToday, startOfIsoWeek } from '@/lib/time'
 import { toast } from 'sonner'
 import { moveBookingAction } from '../_actions/move-booking'
 import { BookingDetailDialog } from './booking-detail-dialog'
-import {
-  CalendarDayView,
-  type MoveRequest,
-} from './calendar-day-view'
+import { CalendarDayView, type MoveRequest } from './calendar-day-view'
 import { CalendarWeekView } from './calendar-week-view'
 import { CreateBlockSheet } from './create-block-sheet'
 import { CreateBookingSheet } from './create-booking-sheet'
@@ -135,7 +132,7 @@ export function CalendarShell({
     const booking = bookings.find((b) => b.bookingId === req.bookingId)
     if (!booking) return
     const newEmployee = req.newEmployeeId
-      ? employees.find((e) => e.id === req.newEmployeeId) ?? null
+      ? (employees.find((e) => e.id === req.newEmployeeId) ?? null)
       : null
     setMovePreview({
       bookingId: req.bookingId,
@@ -184,7 +181,7 @@ export function CalendarShell({
 
       <div className="flex flex-col gap-3 rounded-md border p-3">
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-1">
+          <div className="flex flex-wrap items-center gap-1">
             <Button
               variant="outline"
               size="icon"
@@ -320,8 +317,10 @@ export function CalendarShell({
 
       {/* Wrapper de scroll horizontal: el alto nunca queda recortado para que
           no aparezca un scroll vertical interno; verticalmente fluye la
-          página completa. */}
-      <div className="px-1 pb-1">
+          página completa. En mobile el grid del calendario supera el ancho del
+          viewport, así que el scroll horizontal queda confinado a esta caja
+          (sin él, todo el layout hace overflow). */}
+      <div className="overflow-x-auto px-1 pb-1">
         <div className="min-w-fit rounded-md border bg-card">
           {view === 'day' ? (
             <CalendarDayView

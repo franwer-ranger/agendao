@@ -78,26 +78,24 @@ export async function listTodaysBookings({
       | { display_name: string; color_hex: string | null }
       | { display_name: string; color_hex: string | null }[]
       | null
-    bookings:
-      | {
-          public_id: string
-          internal_note: string | null
-          clients:
-            | {
-                id: number
-                display_name: string
-                phone: string | null
-                email: string | null
-              }
-            | {
-                id: number
-                display_name: string
-                phone: string | null
-                email: string | null
-              }[]
-            | null
-        }
-      | null
+    bookings: {
+      public_id: string
+      internal_note: string | null
+      clients:
+        | {
+            id: number
+            display_name: string
+            phone: string | null
+            email: string | null
+          }
+        | {
+            id: number
+            display_name: string
+            phone: string | null
+            email: string | null
+          }[]
+        | null
+    } | null
   }
 
   return ((data ?? []) as unknown as Row[]).map((row) => {

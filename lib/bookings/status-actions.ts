@@ -21,10 +21,7 @@ const ALLOWED_TRANSITIONS: Record<BookingStatus, BookingStatus[]> = {
   no_show: [],
 }
 
-function isTransitionAllowed(
-  from: BookingStatus,
-  to: BookingStatus,
-): boolean {
+function isTransitionAllowed(from: BookingStatus, to: BookingStatus): boolean {
   return ALLOWED_TRANSITIONS[from]?.includes(to) ?? false
 }
 

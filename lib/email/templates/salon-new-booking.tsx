@@ -5,11 +5,7 @@ import { EmailLayout, emailColors } from './_shared/layout'
 
 // Aviso interno al salón cuando entra una reserva nueva. El estilo es el
 // mismo que el cliente para no mantener dos sets de plantillas.
-export function SalonNewBookingEmail({
-  ctx,
-}: {
-  ctx: BookingEmailContext
-}) {
+export function SalonNewBookingEmail({ ctx }: { ctx: BookingEmailContext }) {
   return (
     <EmailLayout
       preview={`Nueva reserva de ${ctx.client.displayName}`}
@@ -20,7 +16,12 @@ export function SalonNewBookingEmail({
       cancellationPolicyText={null}
     >
       <Text
-        style={{ margin: 0, fontSize: 20, fontWeight: 600, color: emailColors.accent }}
+        style={{
+          margin: 0,
+          fontSize: 20,
+          fontWeight: 600,
+          color: emailColors.accent,
+        }}
       >
         Nueva reserva
       </Text>
@@ -37,7 +38,9 @@ export function SalonNewBookingEmail({
         {ctx.client.email ? (
           <>
             {' '}
-            (<span style={{ color: emailColors.muted }}>{ctx.client.email}</span>)
+            (
+            <span style={{ color: emailColors.muted }}>{ctx.client.email}</span>
+            )
           </>
         ) : null}
         .

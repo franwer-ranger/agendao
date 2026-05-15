@@ -18,7 +18,12 @@ export function BookingConfirmationEmail({
       cancellationPolicyText={ctx.salon.cancellationPolicyText}
     >
       <Text
-        style={{ margin: 0, fontSize: 20, fontWeight: 600, color: emailColors.accent }}
+        style={{
+          margin: 0,
+          fontSize: 20,
+          fontWeight: 600,
+          color: emailColors.accent,
+        }}
       >
         ¡Reserva confirmada!
       </Text>
@@ -30,8 +35,8 @@ export function BookingConfirmationEmail({
           lineHeight: 1.6,
         }}
       >
-        Hola {ctx.client.displayName}, hemos recibido tu reserva. Te
-        esperamos en {ctx.salon.name}.
+        Hola {ctx.client.displayName}, hemos recibido tu reserva. Te esperamos
+        en {ctx.salon.name}.
       </Text>
 
       <BookingSummary booking={ctx.booking} timezone={ctx.salon.timezone} />
@@ -46,7 +51,9 @@ export function BookingConfirmationEmail({
       >
         Si necesitas cancelar o cambiar la cita, contacta con el salón
         {ctx.salon.phone ? ` en el ${ctx.salon.phone}` : ''}
-        {ctx.salon.contactEmail ? ` o escríbenos a ${ctx.salon.contactEmail}` : ''}
+        {ctx.salon.contactEmail
+          ? ` o escríbenos a ${ctx.salon.contactEmail}`
+          : ''}
         . Te pedimos avisar con al menos {ctx.salon.cancellationMinHours} horas
         de antelación.
       </Text>

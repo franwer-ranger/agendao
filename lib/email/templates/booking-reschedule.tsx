@@ -20,7 +20,12 @@ export function BookingRescheduleEmail({ ctx, previousStartsAt }: Props) {
       cancellationPolicyText={ctx.salon.cancellationPolicyText}
     >
       <Text
-        style={{ margin: 0, fontSize: 20, fontWeight: 600, color: emailColors.accent }}
+        style={{
+          margin: 0,
+          fontSize: 20,
+          fontWeight: 600,
+          color: emailColors.accent,
+        }}
       >
         Tu reserva se ha reprogramado
       </Text>
@@ -32,8 +37,8 @@ export function BookingRescheduleEmail({ ctx, previousStartsAt }: Props) {
           lineHeight: 1.6,
         }}
       >
-        Hola {ctx.client.displayName}, tu cita en {ctx.salon.name} se ha
-        movido. El nuevo horario es el que ves abajo.
+        Hola {ctx.client.displayName}, tu cita en {ctx.salon.name} se ha movido.
+        El nuevo horario es el que ves abajo.
       </Text>
 
       <Text

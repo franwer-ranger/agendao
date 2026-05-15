@@ -1,8 +1,5 @@
 import { getCurrentSalon } from '@/lib/salon'
-import {
-  listEmployees,
-  listServicesForSalon,
-} from '@/lib/employees/queries'
+import { listEmployees, listServicesForSalon } from '@/lib/employees/queries'
 import { EmployeeForm } from '../_components/employee-form'
 
 // Misma paleta que `_components/employee-form.tsx` y el backfill SQL — se

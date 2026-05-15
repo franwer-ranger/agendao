@@ -36,8 +36,12 @@ export function computeAvailability(
   }
 
   // Working hours del salón: indexado por weekday para reuso.
+  // `hoursConfigured` replica el contrato del trigger `booking_items_validate`:
+  // si existe al menos una fila para el salón, los días sin fila se consideran
+  // CERRADOS. Si no hay ninguna, no aplicamos restricción del salón todavía.
   const workingHoursByDow = new Map<number, SalonWorkingHoursRow>()
   for (const wh of raw.workingHours) workingHoursByDow.set(wh.weekday, wh)
+  const hoursConfigured = raw.workingHours.length > 0
 
   // Weekly shifts y breaks por empleado para evitar recorrer todo cada día.
   const shiftsByEmployee = groupBy(raw.weeklyShifts, (r) => r.employee_id)
@@ -73,8 +77,9 @@ export function computeAvailability(
       const shifts = expandWeeklyOnDate(empShifts, dow, date)
       if (shifts.length === 0) continue
       const wh = workingHoursByDow.get(dow)
-      if (wh) {
-        if (!wh.opens_at || !wh.closes_at) continue // día cerrado
+      if (hoursConfigured) {
+        if (!wh) continue // sin fila para este día → salón cerrado
+        if (!wh.opens_at || !wh.closes_at) continue // día marcado como cerrado
         const whInterval: Interval = {
           start: madridLocalDateTimeToUtc(date, wh.opens_at),
           end: madridLocalDateTimeToUtc(date, wh.closes_at),

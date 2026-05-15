@@ -2,6 +2,7 @@
 
 import { getAvailableSlots } from '@/lib/availability'
 import { validateAndCreateBooking } from '@/lib/availability/booking'
+// `getAvailableSlots` se sigue usando para el retry-on-any más abajo.
 import { upsertClientForBooking } from '@/lib/clients/queries'
 import { emitBookingCreatedEmails } from '@/lib/email/triggers/on-booking-created'
 import { getSalonBySlug } from '@/lib/salons/queries'
@@ -100,26 +101,11 @@ export async function createPublicBookingAction(
     salon.timezone,
   )
 
-  // Re-validación barata: ¿el slot sigue ahí justo antes de intentar crear?
-  // Evita la mayoría de carreras sin coste de transacción.
-  const sameDaySlots = await getAvailableSlots({
-    salonId: salon.id,
-    serviceId: input.serviceId,
-    employeeId: input.employeeId,
-    from: preselectedDate,
-    to: preselectedDate,
-  })
-  const stillThere = sameDaySlots.some(
-    (s) => s.startsAt === input.startsAt && s.employeeId === input.employeeId,
-  )
-  if (!stillThere && input.originalEmployeeChoice !== 'any') {
-    return {
-      ok: false,
-      message: userMessageForCode('EMPLOYEE_OVERLAP'),
-      retryStep: 'datetime',
-      preselectedDate,
-    }
-  }
+  // Nota: antes había un pre-check `stillThere` que comparaba `startsAt` como
+  // string contra los slots devueltos por el motor. Eliminado porque (1) era
+  // frágil ante cualquier reformateo y (2) duplicaba reglas que ya enforce el
+  // trigger SQL `booking_items_validate`. El trigger es source of truth; si
+  // rechaza, el flujo de `RETRYABLE_CODES` más abajo levanta el modal.
 
   const client = await upsertClientForBooking({
     salonId: salon.id,
