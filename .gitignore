@@ -17,6 +17,9 @@
 /.next/
 /out/
 
+# local sqlite database
+/data/
+
 # production
 /build
 
