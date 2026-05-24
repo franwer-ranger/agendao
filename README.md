@@ -102,6 +102,86 @@ docker run --rm -p 3000:3000 \
 - El contenedor corre como usuario no-root (`nextjs`, uid 1001).
 - `GET /api/health` devuelve `200` si la DB responde, `503` en caso contrario — es el endpoint que sondea Kamal.
 
+## Despliegue en VPS con Kamal 2
+
+La app se despliega con [Kamal 2](https://kamal-deploy.org/) sobre un VPS Hetzner amd64. La config vive en `config/deploy.yml` y los secretos en `.kamal/secrets` (no versionado).
+
+### Prerrequisitos
+
+- VPS Hetzner accesible por SSH como `root` con tu llave pública.
+- DNS A-record del dominio → IP del VPS, con el proxy de Cloudflare **apagado** (gris) durante la emisión del cert de Let's Encrypt. Después se puede activar.
+- Personal Access Token de GitHub con scope `write:packages` exportado como `GHCR_TOKEN`.
+- Kamal 2.x: `gem install kamal && kamal version` (≥ 2.10).
+- Firewall del VPS abriendo TCP 22, 80 y 443.
+
+### Setup único del host
+
+```bash
+ssh root@<IP>
+mkdir -p /var/lib/agendao/data
+chown -R 1001:1001 /var/lib/agendao/data
+chmod 750 /var/lib/agendao/data
+exit
+```
+
+El `chown` a uid 1001 es indispensable: el contenedor corre como usuario `nextjs` (uid 1001) y no podría escribir el `.db` ni los uploads si el host dir queda como root.
+
+### Configuración local
+
+1. Verificar que `config/deploy.yml` tiene el dominio correcto en `proxy.host` y `env.clear.APP_URL` (hoy `app.agendao.xyz`).
+2. Verificar que `.kamal/secrets` tiene `EMAIL_FROM` apuntando al dominio real. En M8 se sustituye `RESEND_API_KEY=disabled-until-m8` por el valor real de Resend (con `kamal env push` queda activo sin redeploy).
+3. Exportar antes de cada deploy:
+   ```bash
+   export GHCR_TOKEN=ghp_xxx
+   export CRON_SECRET=$(openssl rand -base64 32)   # guardar en password manager
+   ```
+
+### Primer despliegue
+
+```bash
+echo "$GHCR_TOKEN" | docker login ghcr.io -u franwer-ranger --password-stdin
+kamal setup       # instala Docker en el host, levanta kamal-proxy y hace el primer deploy
+curl -sf https://<DOMINIO>/api/health
+# Esperado: {"status":"ok"}
+```
+
+### Operaciones comunes
+
+```bash
+kamal deploy                                  # nuevo cambio de código
+kamal logs -f                                 # logs en vivo (alias: `kamal logs`)
+kamal app exec --interactive --reuse "sh"     # shell en el contenedor (alias: `kamal shell`)
+kamal proxy logs                              # logs del proxy (TLS, routing)
+kamal rollback <version>                      # volver a una imagen anterior
+kamal env push                                # propagar cambios en .kamal/secrets sin redeploy
+```
+
+### Preview HTTP sin dominio
+
+Mientras no haya un dominio real apuntando a la IP, `kamal setup` fallará al intentar emitir el certificado de Let's Encrypt. Para validar el deploy sin TLS, edita temporalmente `config/deploy.yml`:
+
+1. Comentar todo el bloque `proxy:`.
+2. Bajo `servers.web` añadir un mapeo de puerto al host:
+   ```yaml
+   servers:
+     web:
+       hosts:
+         - 65.109.12.199
+       options:
+         publish:
+           - "80:3000"
+   ```
+3. `kamal setup` → la app queda en `http://<IP>/`.
+
+Cuando llegue el dominio, revertir: descomentar `proxy:`, quitar `options.publish`, actualizar `proxy.host` y `env.clear.APP_URL`, y `kamal redeploy`.
+
+### Notas importantes
+
+- **SQLite no soporta réplicas paralelas**: `boot.limit: 1` en `deploy.yml` fuerza stop-then-start, lo que genera ~5–15 s de 502s durante cada deploy mientras el nuevo contenedor arranca y corre migraciones. Aceptable para esta etapa.
+- **El bind mount `/var/lib/agendao/data` es la única fuente de verdad** (SQLite + uploads). Backupearlo antes de subir tráfico real.
+- **El primer build amd64 desde Mac ARM tarda 5–10 min** por la emulación QEMU de `better-sqlite3`. Los siguientes reutilizan caché de buildx.
+- **`kamal shell` entra como `nextjs`, no `root`**. Para debug que requiera root, entrar por SSH al VPS y `docker exec -u 0 -it <container> sh`.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

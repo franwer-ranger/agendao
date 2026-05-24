@@ -7,7 +7,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       python3 make g++ ca-certificates \
   && rm -rf /var/lib/apt/lists/*
 COPY package.json package-lock.json ./
-RUN npm ci
+# Nota: usamos `npm install` en lugar de `npm ci` por un bug conocido con
+# bundleDependencies optionals cross-plataforma (Tailwind v4 oxide-wasm32-wasi
+# referencia @emnapi/* que npm no registra como entries propias del lockfile
+# al instalar en Mac ARM). `npm install` resuelve las entries faltantes en el
+# contenedor sin alterar versiones dentro de los rangos del lockfile.
+RUN npm install --no-audit --no-fund
 
 # ---------- builder ----------
 FROM node:20-slim AS builder

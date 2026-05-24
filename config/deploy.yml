@@ -1,0 +1,64 @@
+# Kamal 2.x — single-host Hetzner VPS deploy para agendao.
+# Imagen construida localmente en Mac ARM con cross-build a amd64 vía QEMU.
+
+service: agendao
+image: franwer-ranger/agendao
+
+servers:
+  web:
+    hosts:
+      - 65.109.12.199
+    # Una sola réplica: SQLite no tolera dos escritores sobre el mismo .db.
+    # Ver boot.limit abajo para la garantía durante rolling deploys.
+
+# Kamal 2.x reemplaza Traefik por kamal-proxy (HTTP/2, Let's Encrypt automático).
+# OJO: con el dominio aún sin comprar, `kamal setup` fallará al emitir el cert.
+# Hasta tener dominio real, ver la sección "Preview HTTP sin dominio" del README.
+proxy:
+  ssl: true
+  host: app.agendao.xyz
+  app_port: 3000
+  healthcheck:
+    path: /api/health
+    interval: 3
+    timeout: 30
+
+registry:
+  server: ghcr.io
+  username: franwer-ranger
+  password:
+    - KAMAL_REGISTRY_PASSWORD
+
+builder:
+  arch: amd64
+
+env:
+  clear:
+    NODE_ENV: production
+    PORT: "3000"
+    HOSTNAME: 0.0.0.0
+    NEXT_TELEMETRY_DISABLED: "1"
+    # Override del default del Dockerfile (/app/data/dev.db).
+    DATABASE_URL: /app/data/prod.db
+    # APP_URL lo lee lib/storage.ts para construir URLs absolutas.
+    APP_URL: https://app.agendao.xyz
+    # UPLOADS_DIR vive en el mismo volumen persistente que el .db.
+    UPLOADS_DIR: /app/data/uploads
+  secret:
+    - RESEND_API_KEY
+    - EMAIL_FROM
+    - CRON_SECRET
+
+# Host dir debe ser owned por uid 1001 (usuario nextjs del contenedor).
+volumes:
+  - "/var/lib/agendao/data:/app/data"
+
+# Crítico para SQLite: garantiza stop-then-start.
+boot:
+  limit: 1
+  wait: 2
+
+aliases:
+  shell: app exec --interactive --reuse "sh"
+  logs: app logs -f
+  migrate: app exec --reuse "node /app/scripts/migrate-prod.mjs"

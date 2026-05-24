@@ -46,3 +46,7 @@ next-env.d.ts
 # supabase CLI local state
 supabase/.temp/
 supabase/.branches/
+
+# Kamal
+/.kamal/secrets
+/.kamal/secrets.*

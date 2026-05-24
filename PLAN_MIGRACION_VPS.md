@@ -16,6 +16,7 @@
 
 ## Decisiones de stack (justificadas)
 
+
 | Pieza                                           | Elección                                                 | Por qué                                                                                                                           |
 | ----------------------------------------------- | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
 | Hosting                                         | **Hetzner Cloud** (CX22, ~4,5€/mes)                      | Coste mínimo, ubicación europea (Falkenstein/Helsinki), API decente para automatizar el onboarding después.                       |
@@ -30,6 +31,7 @@
 | Backups SQLite                                  | **Litestream** → Backblaze B2 (o Cloudflare R2)          | Replicación continua del WAL. Recuperación point-in-time. Coste céntimos.                                                         |
 | Uptime                                          | **UptimeRobot** free                                     | 50 monitores gratis, más que suficiente para 15-20 instancias.                                                                    |
 | Errores                                         | **Sentry** free                                          | 5.000 errores/mes, suficiente para detectar problemas reales antes que el cliente.                                                |
+
 
 > Cosas que **deliberadamente no entran** todavía: CDN externo (Next.js standalone sirve assets bien), Redis (no hay nada que cachear que justifique la pieza extra), colas de tareas dedicadas (los pocos jobs son crons de sistema o rutas API protegidas).
 
@@ -55,14 +57,14 @@ M1 → M2 → M3 → M4 → M5 → M6 → M7 → M8 → M9 → Bloque 10 → Blo
 
 ### Pasos
 
-- [ ] Instalar `drizzle-orm`, `drizzle-kit`, `better-sqlite3`, `@types/better-sqlite3`
-- [ ] Crear `src/db/schema.ts` replicando el esquema actual de Postgres
-- [ ] Crear `src/db/index.ts` con cliente singleton, **WAL mode activado**
-- [ ] Configurar `drizzle.config.ts`
-- [ ] Generar la primera migración con `drizzle-kit generate`
-- [ ] Scripts en `package.json`: `db:generate`, `db:migrate`, `db:studio`
-- [ ] Variable de entorno `DATABASE_URL` apuntando a fichero SQLite local (`./data/dev.db`)
-- [ ] Añadir `data/` al `.gitignore`
+- Instalar `drizzle-orm`, `drizzle-kit`, `better-sqlite3`, `@types/better-sqlite3`
+- Crear `src/db/schema.ts` replicando el esquema actual de Postgres
+- Crear `src/db/index.ts` con cliente singleton, **WAL mode activado**
+- Configurar `drizzle.config.ts`
+- Generar la primera migración con `drizzle-kit generate`
+- Scripts en `package.json`: `db:generate`, `db:migrate`, `db:studio`
+- Variable de entorno `DATABASE_URL` apuntando a fichero SQLite local (`./data/dev.db`)
+- Añadir `data/` al `.gitignore`
 
 ### Puntos críticos
 
@@ -118,12 +120,12 @@ errores y dime cualquier discrepancia que hayas tenido que resolver.
 
 ### Pasos
 
-- [ ] Inventariar todos los puntos del código que llaman a Supabase (route handlers, server actions, server components, scripts)
-- [ ] Migrar por dominio: servicios → empleados → horarios → reservas → clientes → bloqueos
-- [ ] Por cada dominio: reemplazar lecturas, escrituras, y comprobar que los tests (si existen) siguen pasando
-- [ ] Eliminar dependencia de `@supabase/supabase-js` cuando no quede ninguna llamada
-- [ ] Migrar el seed/datos de desarrollo a un script de Drizzle
-- [ ] Verificación end-to-end del flujo crítico (reserva pública + dashboard) sobre SQLite
+- Inventariar todos los puntos del código que llaman a Supabase (route handlers, server actions, server components, scripts)
+- Migrar por dominio: servicios → empleados → horarios → reservas → clientes → bloqueos
+- Por cada dominio: reemplazar lecturas, escrituras, y comprobar que los tests (si existen) siguen pasando
+- Eliminar dependencia de `@supabase/supabase-js` cuando no quede ninguna llamada
+- Migrar el seed/datos de desarrollo a un script de Drizzle
+- Verificación end-to-end del flujo crítico (reserva pública + dashboard) sobre SQLite
 
 ### Puntos críticos
 
@@ -182,11 +184,11 @@ cualquier cosa que requiera verificación manual.
 
 ### Pasos
 
-- [ ] Definir estructura: `data/uploads/salons/{salon_id}/logo.{ext}`, `data/uploads/employees/{employee_id}/avatar.{ext}`
-- [ ] Server action / route handler para upload con validación (tipo MIME, tamaño máximo)
-- [ ] Procesamiento de imagen con `sharp` (redimensionar, convertir a webp/avif)
-- [ ] Servir los ficheros desde una ruta Next.js o directamente desde el proxy
-- [ ] Migrar uploads existentes de Supabase Storage si hay datos reales
+- Definir estructura: `data/uploads/salons/{salon_id}/logo.{ext}`, `data/uploads/employees/{employee_id}/avatar.{ext}`
+- Server action / route handler para upload con validación (tipo MIME, tamaño máximo)
+- Procesamiento de imagen con `sharp` (redimensionar, convertir a webp/avif)
+- Servir los ficheros desde una ruta Next.js o directamente desde el proxy
+- Migrar uploads existentes de Supabase Storage si hay datos reales
 
 ### Puntos críticos
 
@@ -240,10 +242,10 @@ Restricciones:
 
 ### Pasos
 
-- [ ] Auditar usos de Realtime: probablemente el calendario (Bloque 6) y el panel hoy (Bloque 7) si reflejan cambios de otros usuarios en vivo
-- [ ] Decidir estrategia: polling simple (refetch cada 30-60s) vs SSE (Server-Sent Events)
-- [ ] Implementar la estrategia elegida
-- [ ] Eliminar dependencia de Realtime
+- Auditar usos de Realtime: probablemente el calendario (Bloque 6) y el panel hoy (Bloque 7) si reflejan cambios de otros usuarios en vivo
+- Decidir estrategia: polling simple (refetch cada 30-60s) vs SSE (Server-Sent Events)
+- Implementar la estrategia elegida
+- Eliminar dependencia de Realtime
 
 ### Puntos críticos
 
@@ -284,13 +286,13 @@ solo afecte al calendario y al panel hoy, si es que afecta.
 
 ### Pasos
 
-- [ ] Activar `output: 'standalone'` en `next.config.js`
-- [ ] Dockerfile multi-stage: builder + runner mínimo
-- [ ] `.dockerignore` agresivo
-- [ ] Sharp instalado en el runtime (no solo en build)
-- [ ] Healthcheck endpoint: `/api/health` que toque la DB y devuelva 200
-- [ ] Variables de entorno documentadas en `.env.example`
-- [ ] Probar localmente: `docker build` + `docker run` con volúmenes mapeados
+- Activar `output: 'standalone'` en `next.config.js`
+- Dockerfile multi-stage: builder + runner mínimo
+- `.dockerignore` agresivo
+- Sharp instalado en el runtime (no solo en build)
+- Healthcheck endpoint: `/api/health` que toque la DB y devuelva 200
+- Variables de entorno documentadas en `.env.example`
+- Probar localmente: `docker build` + `docker run` con volúmenes mapeados
 
 ### Puntos críticos
 
@@ -345,18 +347,18 @@ Restricciones:
 
 ### Pasos
 
-- [ ] Crear cuenta Hetzner Cloud y un proyecto
-- [ ] Provisionar VPS (CX22, Ubuntu 22.04 o 24.04, ubicación europea)
-- [ ] Configurar acceso SSH con clave (deshabilitar password)
-- [ ] Configurar firewall básico (UFW): solo 22, 80, 443
-- [ ] Instalar Docker en el VPS (o dejar que Kamal lo haga; Kamal 2 puede instalarlo)
-- [ ] Crear registro DNS en Cloudflare apuntando subdominio al VPS
-- [ ] Instalar Kamal local: `gem install kamal` (o usar la imagen Docker oficial)
-- [ ] Inicializar configuración: `kamal init`
-- [ ] Editar `config/deploy.yml`: servidor, registro de contenedores, volumen de `data/`, healthcheck
-- [ ] Configurar secrets en `.kamal/secrets`
-- [ ] Primer `kamal setup`, luego `kamal deploy`
-- [ ] Verificar app en producción
+- Crear cuenta Hetzner Cloud y un proyecto
+- Provisionar VPS (CX22, Ubuntu 22.04 o 24.04, ubicación europea)
+- Configurar acceso SSH con clave (deshabilitar password)
+- Configurar firewall básico (UFW): solo 22, 80, 443
+- Instalar Docker en el VPS (o dejar que Kamal lo haga; Kamal 2 puede instalarlo)
+- Crear registro DNS en Cloudflare apuntando subdominio al VPS
+- Instalar Kamal local: `gem install kamal` (o usar la imagen Docker oficial)
+- Inicializar configuración: `kamal init`
+- Editar `config/deploy.yml`: servidor, registro de contenedores, volumen de `data/`, healthcheck
+- Configurar secrets en `.kamal/secrets`
+- Primer `kamal setup`, luego `kamal deploy`
+- Verificar app en producción
 
 ### Puntos críticos
 
@@ -425,12 +427,12 @@ empezaremos por los logs (kamal app logs y kamal proxy logs).
 
 ### Pasos
 
-- [ ] Verificar que `kamal-proxy` está sirviendo en HTTPS con cert de Let's Encrypt
-- [ ] Probar el flujo de reserva pública end-to-end
-- [ ] Probar el dashboard (con la auth que tenga ahora, o sin ella si Bloque 10 no está)
-- [ ] Logs centralizados: revisar `kamal app logs -f` y entender el patrón
-- [ ] Configurar log rotation en el host (Docker por defecto puede llenar el disco)
-- [ ] Healthcheck ampliado: además del SELECT 1, verificar acceso a `data/uploads/`
+- Verificar que `kamal-proxy` está sirviendo en HTTPS con cert de Let's Encrypt
+- Probar el flujo de reserva pública end-to-end
+- Probar el dashboard (con la auth que tenga ahora, o sin ella si Bloque 10 no está)
+- Logs centralizados: revisar `kamal app logs -f` y entender el patrón
+- Configurar log rotation en el host (Docker por defecto puede llenar el disco)
+- Healthcheck ampliado: además del SELECT 1, verificar acceso a `data/uploads/`
 
 ### Puntos críticos
 
@@ -492,14 +494,14 @@ Restricciones:
 
 ### Pasos
 
-- [ ] Cuenta en Resend, verificar dominio remitente (`tuapp.es` o similar)
-- [ ] Obtener API key, añadirla a Kamal secrets
-- [ ] Instalar `resend` (o usar SDK oficial)
-- [ ] Helper `sendEmail({ to, subject, react/html })`
-- [ ] Plantillas con `react-email` para: confirmación, recordatorio, cancelación, reprogramación
-- [ ] Conectar las plantillas a los puntos del Bloque 4 que las disparan
-- [ ] Job de recordatorios 24h: cron de sistema en el VPS que llama a una ruta protegida `/api/jobs/reminders`
-- [ ] Verificación: hacer una reserva real y comprobar que llega el email
+- Cuenta en Resend, verificar dominio remitente (`tuapp.es` o similar)
+- Obtener API key, añadirla a Kamal secrets
+- Instalar `resend` (o usar SDK oficial)
+- Helper `sendEmail({ to, subject, react/html })`
+- Plantillas con `react-email` para: confirmación, recordatorio, cancelación, reprogramación
+- Conectar las plantillas a los puntos del Bloque 4 que las disparan
+- Job de recordatorios 24h: cron de sistema en el VPS que llama a una ruta protegida `/api/jobs/reminders`
+- Verificación: hacer una reserva real y comprobar que llega el email
 
 ### Puntos críticos
 
@@ -562,12 +564,12 @@ Tras esto, haré una reserva real para verificar que el email de confirmación l
 
 ### Pasos
 
-- [ ] Cuenta Backblaze B2 (10GB gratis) o Cloudflare R2 (10GB gratis). Crear bucket
-- [ ] Litestream como accessory de Kamal o instalado en el VPS, replicando `data/prod.db`
-- [ ] Verificar restauración: practicar un `litestream restore` en una máquina aparte para confirmar que el backup vale
-- [ ] UptimeRobot: monitor HTTP del dominio cada 5 minutos
-- [ ] Sentry: SDK en la app, DSN como variable de entorno
-- [ ] Documentar el runbook de recuperación
+- Cuenta Backblaze B2 (10GB gratis) o Cloudflare R2 (10GB gratis). Crear bucket
+- Litestream como accessory de Kamal o instalado en el VPS, replicando `data/prod.db`
+- Verificar restauración: practicar un `litestream restore` en una máquina aparte para confirmar que el backup vale
+- UptimeRobot: monitor HTTP del dominio cada 5 minutos
+- Sentry: SDK en la app, DSN como variable de entorno
+- Documentar el runbook de recuperación
 
 ### Puntos críticos
 
@@ -628,14 +630,14 @@ Restricciones:
 
 ### Pasos
 
-- [ ] Instalar `next-auth@beta` (Auth.js v5) y `@auth/drizzle-adapter`
-- [ ] Tablas de auth en el esquema de Drizzle (users, sessions, accounts, verification_tokens)
-- [ ] Configurar Auth.js con credentials provider (email + password)
-- [ ] Hash de passwords con `argon2` o `bcrypt`
-- [ ] Middleware de protección de rutas del dashboard
-- [ ] Roles `admin` y `staff` en la tabla `users` (no es algo nativo de Auth.js, lo añades como columna y lo respetas en las queries y middleware)
-- [ ] Recuperación de contraseña: token → email con enlace → form de nueva password
-- [ ] Verificación end-to-end de los dos roles
+- Instalar `next-auth@beta` (Auth.js v5) y `@auth/drizzle-adapter`
+- Tablas de auth en el esquema de Drizzle (users, sessions, accounts, verification_tokens)
+- Configurar Auth.js con credentials provider (email + password)
+- Hash de passwords con `argon2` o `bcrypt`
+- Middleware de protección de rutas del dashboard
+- Roles `admin` y `staff` en la tabla `users` (no es algo nativo de Auth.js, lo añades como columna y lo respetas en las queries y middleware)
+- Recuperación de contraseña: token → email con enlace → form de nueva password
+- Verificación end-to-end de los dos roles
 
 ### Puntos críticos
 
@@ -720,11 +722,12 @@ Igual que el 11. Cuando llegues, asegúrate de probar el flujo end-to-end comple
 
 Checklist final, antes de pasar al Bloque 10:
 
-- [ ] M1-M9 completos
-- [ ] App en producción accesible por HTTPS bajo un dominio real
-- [ ] Flujo de reserva pública funcionando end-to-end con email de confirmación
-- [ ] Dashboard accesible (aunque sin auth de producción aún)
-- [ ] Litestream replicando, restauración probada al menos una vez
-- [ ] UptimeRobot monitorizando, Sentry capturando un error de prueba
-- [ ] Runbook escrito en el README
-- [ ] Sin ninguna dependencia de `@supabase/*` en `package.json`
+- M1-M9 completos
+- App en producción accesible por HTTPS bajo un dominio real
+- Flujo de reserva pública funcionando end-to-end con email de confirmación
+- Dashboard accesible (aunque sin auth de producción aún)
+- Litestream replicando, restauración probada al menos una vez
+- UptimeRobot monitorizando, Sentry capturando un error de prueba
+- Runbook escrito en el README
+- Sin ninguna dependencia de `@supabase/`* en `package.json`
+
