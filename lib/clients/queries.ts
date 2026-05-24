@@ -1,11 +1,44 @@
 import 'server-only'
-import { createAdminClient } from '@/lib/supabase/admin'
+import { and, eq } from 'drizzle-orm'
+
+import { db } from '@/lib/db'
+import { clients } from '@/lib/db/schema'
 
 export type UpsertClientForBookingInput = {
   salonId: number
   displayName: string
   phone: string | null
   email: string | null
+}
+
+function isSqliteUniqueError(err: unknown): boolean {
+  return (
+    err instanceof Error &&
+    'code' in err &&
+    (err as { code: unknown }).code === 'SQLITE_CONSTRAINT_UNIQUE'
+  )
+}
+
+function selectByEmail(salonId: number, email: string): number | null {
+  // `clients.email` está declarado con `collate nocase` → la comparación
+  // ya es case-insensitive sin lower().
+  const row = db
+    .select({ id: clients.id })
+    .from(clients)
+    .where(and(eq(clients.salon_id, salonId), eq(clients.email, email)))
+    .limit(1)
+    .get()
+  return row?.id ?? null
+}
+
+function selectByPhone(salonId: number, phone: string): number | null {
+  const row = db
+    .select({ id: clients.id })
+    .from(clients)
+    .where(and(eq(clients.salon_id, salonId), eq(clients.phone, phone)))
+    .limit(1)
+    .get()
+  return row?.id ?? null
 }
 
 // Upsert pensado para el flujo público de reserva.
@@ -24,40 +57,42 @@ export async function upsertClientForBooking(
     throw new Error('clients_upsert_requires_email_or_phone')
   }
 
-  const supabase = createAdminClient()
-
   if (input.email) {
-    const { data, error } = await supabase
-      .from('clients')
-      .select('id')
-      .eq('salon_id', input.salonId)
-      .eq('email', input.email)
-      .maybeSingle()
-    if (error) throw error
-    if (data) return { id: Number(data.id) }
+    const id = selectByEmail(input.salonId, input.email)
+    if (id !== null) return { id }
   }
-
   if (input.phone) {
-    const { data, error } = await supabase
-      .from('clients')
-      .select('id')
-      .eq('salon_id', input.salonId)
-      .eq('phone', input.phone)
-      .maybeSingle()
-    if (error) throw error
-    if (data) return { id: Number(data.id) }
+    const id = selectByPhone(input.salonId, input.phone)
+    if (id !== null) return { id }
   }
 
-  const { data, error } = await supabase
-    .from('clients')
-    .insert({
-      salon_id: input.salonId,
-      display_name: input.displayName,
-      email: input.email,
-      phone: input.phone,
-    })
-    .select('id')
-    .single()
-  if (error) throw error
-  return { id: Number(data.id) }
+  try {
+    const inserted = db
+      .insert(clients)
+      .values({
+        salon_id: input.salonId,
+        display_name: input.displayName,
+        email: input.email,
+        phone: input.phone,
+      })
+      .returning({ id: clients.id })
+      .all()
+    const created = inserted[0]
+    if (!created) throw new Error('No se pudo crear el cliente')
+    return { id: created.id }
+  } catch (e) {
+    // Carrera: otra request creó el mismo cliente entre nuestros SELECT y el
+    // INSERT. La UNIQUE parcial saltó; re-leemos para devolver el id ganador.
+    if (isSqliteUniqueError(e)) {
+      if (input.email) {
+        const id = selectByEmail(input.salonId, input.email)
+        if (id !== null) return { id }
+      }
+      if (input.phone) {
+        const id = selectByPhone(input.salonId, input.phone)
+        if (id !== null) return { id }
+      }
+    }
+    throw e
+  }
 }

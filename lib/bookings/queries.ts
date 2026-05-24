@@ -1,5 +1,8 @@
 import 'server-only'
-import { createAdminClient } from '@/lib/supabase/admin'
+import { and, asc, eq } from 'drizzle-orm'
+
+import { db } from '@/lib/db'
+import { booking_items, bookings, clients, employees } from '@/lib/db/schema'
 
 export type PublicBookingSummary = {
   publicId: string
@@ -23,57 +26,52 @@ export async function getPublicBookingByPublicId({
   salonId: number
   publicId: string
 }): Promise<PublicBookingSummary | null> {
-  const supabase = createAdminClient()
-  const { data, error } = await supabase
-    .from('bookings')
-    .select(
-      `
-      public_id,
-      starts_at,
-      ends_at,
-      status,
-      clients ( email ),
-      booking_items (
-        position,
-        service_snapshot,
-        employees ( display_name )
-      )
-    `,
+  const booking = db
+    .select({
+      id: bookings.id,
+      public_id: bookings.public_id,
+      starts_at: bookings.starts_at,
+      ends_at: bookings.ends_at,
+      status: bookings.status,
+      client_email: clients.email,
+    })
+    .from(bookings)
+    .innerJoin(clients, eq(clients.id, bookings.client_id))
+    .where(
+      and(eq(bookings.salon_id, salonId), eq(bookings.public_id, publicId)),
     )
-    .eq('salon_id', salonId)
-    .eq('public_id', publicId)
-    .maybeSingle()
+    .get()
+  if (!booking) return null
 
-  if (error) throw error
-  if (!data) return null
+  const item = db
+    .select({
+      position: booking_items.position,
+      service_snapshot: booking_items.service_snapshot,
+      employee_name: employees.display_name,
+    })
+    .from(booking_items)
+    .innerJoin(employees, eq(employees.id, booking_items.employee_id))
+    .where(eq(booking_items.booking_id, booking.id))
+    .orderBy(asc(booking_items.position))
+    .limit(1)
+    .get()
+  if (!item) return null
 
-  const items = Array.isArray(data.booking_items) ? data.booking_items : []
-  const firstItem = [...items].sort(
-    (a, b) => (a.position ?? 0) - (b.position ?? 0),
-  )[0]
-  if (!firstItem) return null
-
-  const snapshot = (firstItem.service_snapshot ?? {}) as {
+  const snapshot = item.service_snapshot as {
     name?: string
     duration_minutes?: number
     price_cents?: number
   }
-  const employee = Array.isArray(firstItem.employees)
-    ? firstItem.employees[0]
-    : firstItem.employees
-  const client = Array.isArray(data.clients)
-    ? data.clients[0]
-    : (data.clients as { email: string | null } | null)
 
   return {
-    publicId: data.public_id as string,
-    startsAt: data.starts_at as string,
-    endsAt: data.ends_at as string,
-    status: data.status as string,
-    clientHasEmail: !!client?.email,
+    publicId: booking.public_id,
+    startsAt: booking.starts_at.toISOString(),
+    endsAt: booking.ends_at.toISOString(),
+    status: booking.status,
+    clientHasEmail: !!booking.client_email,
     serviceName: snapshot.name ?? 'Servicio',
     durationMinutes: snapshot.duration_minutes ?? 0,
     priceCents: snapshot.price_cents ?? 0,
-    employeeName: (employee?.display_name as string | undefined) ?? '—',
+    employeeName: item.employee_name,
   }
 }

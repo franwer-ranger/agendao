@@ -57,6 +57,18 @@ export function madridLocalDateOf(instant: Date): string {
   return fmt.format(instant)
 }
 
+// Devuelve 'HH:MM' (hora local Madrid) en la que cae un instante UTC.
+// Útil para comparar lexicográficamente con campos `text` de schedule/breaks.
+export function madridLocalTimeOf(instant: Date): string {
+  const fmt = new Intl.DateTimeFormat('en-GB', {
+    timeZone: SALON_TZ,
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  })
+  return fmt.format(instant)
+}
+
 // Itera fechas 'YYYY-MM-DD' inclusivas desde `from` hasta `to`.
 export function iterateLocalDates(from: string, to: string): string[] {
   const out: string[] = []

@@ -83,14 +83,14 @@ export function IdentityForm({
       return
     }
     if (!(LOGO_ALLOWED_MIME as readonly string[]).includes(file.type)) {
-      setClientLogoError('Formato no soportado (PNG, JPG, WEBP o SVG)')
+      setClientLogoError('Formato no soportado (PNG, JPG o WEBP)')
       setSelectedFile(null)
       setLogoPreview(null)
       setFileInputKey((k) => k + 1)
       return
     }
     if (file.size > LOGO_MAX_BYTES) {
-      setClientLogoError('El archivo supera 2 MB')
+      setClientLogoError('El archivo supera 5 MB')
       setSelectedFile(null)
       setLogoPreview(null)
       setFileInputKey((k) => k + 1)
@@ -191,12 +191,12 @@ export function IdentityForm({
             <input
               key={fileInputKey}
               type="file"
-              accept="image/png,image/jpeg,image/webp,image/svg+xml"
+              accept="image/png,image/jpeg,image/webp"
               onChange={handleFile}
               className="text-sm file:mr-3 file:rounded-md file:border-0 file:bg-secondary file:px-3 file:py-1.5 file:text-sm file:font-medium hover:file:bg-secondary/80"
             />
             <p className="text-xs text-muted-foreground">
-              PNG, JPG, WEBP o SVG. Máximo 2 MB.
+              PNG, JPG o WEBP. Máximo 5 MB.
             </p>
             {logoUrl && !logoPreview && !removeLogo ? (
               <Button

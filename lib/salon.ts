@@ -1,6 +1,8 @@
-import { createAdminClient } from '@/lib/supabase/admin'
+import { db } from '@/lib/db'
+import { salons } from '@/lib/db/schema'
+import { eq } from 'drizzle-orm'
 
-const DEMO_SALON_SLUG = 'demo'
+const DEMO_SALON_SLUG = 'estudio-aurora'
 
 export type CurrentSalon = {
   id: number
@@ -13,23 +15,23 @@ export type CurrentSalon = {
 
 // Until auth lands (Block 10), the dashboard always operates on the demo salon.
 export async function getCurrentSalon(): Promise<CurrentSalon> {
-  const supabase = createAdminClient()
-  const { data, error } = await supabase
-    .from('salons')
-    .select('id, slug, name, timezone, locale, slot_granularity_minutes')
-    .eq('slug', DEMO_SALON_SLUG)
-    .single()
+  const row = db
+    .select({
+      id: salons.id,
+      slug: salons.slug,
+      name: salons.name,
+      timezone: salons.timezone,
+      locale: salons.locale,
+      slot_granularity_minutes: salons.slot_granularity_minutes,
+    })
+    .from(salons)
+    .where(eq(salons.slug, DEMO_SALON_SLUG))
+    .get()
 
-  if (error) {
+  if (!row) {
     throw new Error(
-      `Error consultando el salón "${DEMO_SALON_SLUG}": ${error.message}. ` +
-        'Comprueba que SUPABASE_SERVICE_ROLE_KEY es la key correcta (JWT que empieza por "eyJ…", no un placeholder).',
+      `No se encontró el salón "${DEMO_SALON_SLUG}". ¿Ejecutaste npm run db:migrate && npm run db:seed?`,
     )
   }
-  if (!data) {
-    throw new Error(
-      `No se encontró el salón "${DEMO_SALON_SLUG}". ¿Cargaste supabase/seed.sql?`,
-    )
-  }
-  return data
+  return row
 }

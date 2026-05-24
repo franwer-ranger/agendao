@@ -1,6 +1,15 @@
 import 'server-only'
+import { asc, eq } from 'drizzle-orm'
+
+import { db } from '@/lib/db'
+import {
+  booking_items,
+  bookings,
+  clients,
+  employees,
+  salons,
+} from '@/lib/db/schema'
 import { getLogoPublicUrl } from '@/lib/salons/queries'
-import { createAdminClient } from '@/lib/supabase/admin'
 import type { BookingEmailContext } from './types'
 
 // Carga todo lo que necesita una plantilla a partir del id interno de reserva.
@@ -9,103 +18,79 @@ import type { BookingEmailContext } from './types'
 export async function loadBookingEmailContext(
   bookingId: number,
 ): Promise<BookingEmailContext | null> {
-  const supabase = createAdminClient()
-
-  const { data: booking, error: bookingErr } = await supabase
-    .from('bookings')
-    .select(
-      `
-      id,
-      public_id,
-      starts_at,
-      ends_at,
-      salon_id,
-      client:clients!inner (
-        display_name,
-        email
-      ),
-      salon:salons!inner (
-        id,
-        name,
-        timezone,
-        address,
-        phone,
-        contact_email,
-        logo_path,
-        cancellation_min_hours,
-        cancellation_policy_text
-      ),
-      items:booking_items (
-        position,
-        starts_at,
-        service_snapshot,
-        employee:employees!inner (
-          display_name
-        )
-      )
-      `,
-    )
-    .eq('id', bookingId)
-    .order('position', { foreignTable: 'booking_items', ascending: true })
-    .maybeSingle()
-
-  if (bookingErr) {
-    throw new Error(`loadBookingEmailContext: ${bookingErr.message}`)
-  }
-  if (!booking) return null
-
-  // Supabase devuelve relaciones como objeto (cuando la columna es FK única) o
-  // array. Aquí client y salon son uno-a-uno y items es 1:N.
-  const client = Array.isArray(booking.client)
-    ? booking.client[0]
-    : booking.client
-  const salon = Array.isArray(booking.salon) ? booking.salon[0] : booking.salon
-  const itemsRaw = booking.items as Array<{
-    position: number
-    starts_at: string
-    service_snapshot: {
-      name: string
-      duration_minutes: number
-      price_cents: number
-    }
-    employee: { display_name: string } | { display_name: string }[]
-  }>
-
-  const items = itemsRaw
-    .slice()
-    .sort((a, b) => a.position - b.position)
-    .map((it) => {
-      const emp = Array.isArray(it.employee) ? it.employee[0] : it.employee
-      return {
-        serviceName: it.service_snapshot.name,
-        employeeName: emp?.display_name ?? '',
-        durationMinutes: it.service_snapshot.duration_minutes,
-        priceCents: it.service_snapshot.price_cents,
-      }
+  const head = db
+    .select({
+      booking_id: bookings.id,
+      booking_public_id: bookings.public_id,
+      booking_starts_at: bookings.starts_at,
+      booking_ends_at: bookings.ends_at,
+      salon_id: salons.id,
+      salon_name: salons.name,
+      salon_timezone: salons.timezone,
+      salon_address: salons.address,
+      salon_phone: salons.phone,
+      salon_contact_email: salons.contact_email,
+      salon_logo_path: salons.logo_path,
+      salon_cancellation_min_hours: salons.cancellation_min_hours,
+      salon_cancellation_policy_text: salons.cancellation_policy_text,
+      client_display_name: clients.display_name,
+      client_email: clients.email,
     })
+    .from(bookings)
+    .innerJoin(clients, eq(clients.id, bookings.client_id))
+    .innerJoin(salons, eq(salons.id, bookings.salon_id))
+    .where(eq(bookings.id, bookingId))
+    .get()
+  if (!head) return null
+
+  const itemRows = db
+    .select({
+      position: booking_items.position,
+      service_snapshot: booking_items.service_snapshot,
+      employee_name: employees.display_name,
+    })
+    .from(booking_items)
+    .innerJoin(employees, eq(employees.id, booking_items.employee_id))
+    .where(eq(booking_items.booking_id, bookingId))
+    .orderBy(asc(booking_items.position))
+    .all()
+
+  const items = itemRows.map((it) => {
+    const snap = it.service_snapshot as {
+      name?: string
+      duration_minutes?: number
+      price_cents?: number
+    }
+    return {
+      serviceName: snap.name ?? '',
+      employeeName: it.employee_name,
+      durationMinutes: snap.duration_minutes ?? 0,
+      priceCents: snap.price_cents ?? 0,
+    }
+  })
 
   const totalCents = items.reduce((acc, i) => acc + i.priceCents, 0)
 
   return {
     salon: {
-      id: salon.id,
-      name: salon.name,
-      timezone: salon.timezone,
-      address: salon.address,
-      phone: salon.phone,
-      contactEmail: salon.contact_email,
-      logoUrl: getLogoPublicUrl(salon.logo_path),
-      cancellationMinHours: salon.cancellation_min_hours,
-      cancellationPolicyText: salon.cancellation_policy_text,
+      id: head.salon_id,
+      name: head.salon_name,
+      timezone: head.salon_timezone,
+      address: head.salon_address,
+      phone: head.salon_phone,
+      contactEmail: head.salon_contact_email,
+      logoUrl: getLogoPublicUrl(head.salon_logo_path),
+      cancellationMinHours: head.salon_cancellation_min_hours,
+      cancellationPolicyText: head.salon_cancellation_policy_text,
     },
     client: {
-      displayName: client.display_name,
-      email: client.email ?? '',
+      displayName: head.client_display_name,
+      email: head.client_email ?? '',
     },
     booking: {
-      publicId: booking.public_id,
-      startsAt: booking.starts_at,
-      endsAt: booking.ends_at,
+      publicId: head.booking_public_id,
+      startsAt: head.booking_starts_at.toISOString(),
+      endsAt: head.booking_ends_at.toISOString(),
       totalCents,
       items,
     },
@@ -119,15 +104,13 @@ export async function getSalonNotificationConfig(salonId: number): Promise<{
   notifySalon: boolean
   contactEmail: string | null
 } | null> {
-  const supabase = createAdminClient()
-  const { data, error } = await supabase
-    .from('salons')
-    .select('notify_salon_on_new_booking, contact_email')
-    .eq('id', salonId)
-    .maybeSingle()
-  if (error || !data) return null
-  return {
-    notifySalon: data.notify_salon_on_new_booking,
-    contactEmail: data.contact_email,
-  }
+  const row = db
+    .select({
+      notifySalon: salons.notify_salon_on_new_booking,
+      contactEmail: salons.contact_email,
+    })
+    .from(salons)
+    .where(eq(salons.id, salonId))
+    .get()
+  return row ?? null
 }
