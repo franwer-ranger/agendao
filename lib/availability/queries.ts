@@ -92,11 +92,7 @@ export type AvailabilityRawData = {
   bookingItems: BookingItemRow[]
 }
 
-const ACTIVE_BOOKING_STATUSES = [
-  'pending',
-  'confirmed',
-  'in_progress',
-] as const
+const ACTIVE_BOOKING_STATUSES = ['pending', 'confirmed', 'in_progress'] as const
 
 // ─── Bulk fetch ───────────────────────────────────────────────────────────
 
@@ -139,7 +135,9 @@ export async function fetchAvailabilityData(args: {
       is_active: services.is_active,
     })
     .from(services)
-    .where(and(eq(services.id, args.serviceId), eq(services.salon_id, args.salonId)))
+    .where(
+      and(eq(services.id, args.serviceId), eq(services.salon_id, args.salonId)),
+    )
     .get()
   if (!service || !service.is_active) return null
 

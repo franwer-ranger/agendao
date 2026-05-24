@@ -29,10 +29,7 @@ export async function updateBookingInternalNoteAction(input: {
     db.update(bookings)
       .set({ internal_note: trimmed === '' ? null : trimmed })
       .where(
-        and(
-          eq(bookings.id, input.bookingId),
-          eq(bookings.salon_id, salon.id),
-        ),
+        and(eq(bookings.id, input.bookingId), eq(bookings.salon_id, salon.id)),
       )
       .run()
   } catch (e) {

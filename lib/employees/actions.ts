@@ -2,15 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
-import {
-  and,
-  asc,
-  eq,
-  gt,
-  inArray,
-  isNull,
-  lt,
-} from 'drizzle-orm'
+import { and, asc, eq, gt, inArray, isNull, lt } from 'drizzle-orm'
 
 import { db } from '@/lib/db'
 import {
@@ -163,12 +155,7 @@ export async function createEmployeeAction(
       const created = inserted[0]
       if (!created) throw new Error('No se pudo crear el empleado')
 
-      syncServiceAssignments(
-        created.id,
-        salon.id,
-        parsed.data.service_ids,
-        tx,
-      )
+      syncServiceAssignments(created.id, salon.id, parsed.data.service_ids, tx)
       return created.id
     })
   } catch (e) {
@@ -233,12 +220,7 @@ export async function updateEmployeeAction(
         )
         .run()
 
-      syncServiceAssignments(
-        employeeId,
-        salon.id,
-        parsed.data.service_ids,
-        tx,
-      )
+      syncServiceAssignments(employeeId, salon.id, parsed.data.service_ids, tx)
     })
   } catch (e) {
     return { ok: false, message: (e as Error).message }

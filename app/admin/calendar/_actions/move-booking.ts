@@ -18,11 +18,7 @@ export type MoveBookingResult =
   | { ok: true; previousStartsAt: string; newStartsAt: string }
   | { ok: false; code: string; message: string }
 
-const ACTIVE_BOOKING_STATUSES = [
-  'pending',
-  'confirmed',
-  'in_progress',
-] as const
+const ACTIVE_BOOKING_STATUSES = ['pending', 'confirmed', 'in_progress'] as const
 
 // Mueve la (única) tarjeta de calendario asociada a un booking: actualiza
 // `booking_items.starts_at/ends_at` (y opcionalmente `employee_id`).
@@ -145,4 +141,3 @@ export async function moveBookingAction(input: {
     newStartsAt: newStartsIso!,
   }
 }
-

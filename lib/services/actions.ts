@@ -149,21 +149,14 @@ export async function updateServiceAction(
           slug: services.slug,
         })
         .from(services)
-        .where(
-          and(eq(services.id, serviceId), eq(services.salon_id, salon.id)),
-        )
+        .where(and(eq(services.id, serviceId), eq(services.salon_id, salon.id)))
         .get()
       if (!current) throw new Error('Servicio no encontrado')
 
       const slug =
         current.name === parsed.data.name
           ? current.slug
-          : resolveUniqueServiceSlug(
-              salon.id,
-              parsed.data.name,
-              serviceId,
-              tx,
-            )
+          : resolveUniqueServiceSlug(salon.id, parsed.data.name, serviceId, tx)
 
       tx.update(services)
         .set({
@@ -178,12 +171,7 @@ export async function updateServiceAction(
         .where(and(eq(services.id, serviceId), eq(services.salon_id, salon.id)))
         .run()
 
-      syncEmployeeAssignments(
-        serviceId,
-        salon.id,
-        parsed.data.employee_ids,
-        tx,
-      )
+      syncEmployeeAssignments(serviceId, salon.id, parsed.data.employee_ids, tx)
     })
   } catch (e) {
     return { ok: false, message: (e as Error).message }

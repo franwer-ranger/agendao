@@ -4,11 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { and, eq } from 'drizzle-orm'
 
 import { db } from '@/lib/db'
-import {
-  booking_items,
-  booking_status_events,
-  bookings,
-} from '@/lib/db/schema'
+import { booking_items, booking_status_events, bookings } from '@/lib/db/schema'
 import type { BookingStatus } from '@/lib/bookings/status'
 import { getCurrentSalon } from '@/lib/salon'
 
@@ -104,7 +100,10 @@ export async function setBookingStatusAction(input: {
           from_status: from,
           to_status: input.toStatus,
           actor_type: 'system',
-          reason: input.toStatus === 'cancelled_salon' ? input.reason ?? null : null,
+          reason:
+            input.toStatus === 'cancelled_salon'
+              ? (input.reason ?? null)
+              : null,
         })
         .run()
 

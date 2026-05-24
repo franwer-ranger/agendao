@@ -16,7 +16,6 @@
 
 ## Decisiones de stack (justificadas)
 
-
 | Pieza                                           | Elección                                                 | Por qué                                                                                                                           |
 | ----------------------------------------------- | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
 | Hosting                                         | **Hetzner Cloud** (CX22, ~4,5€/mes)                      | Coste mínimo, ubicación europea (Falkenstein/Helsinki), API decente para automatizar el onboarding después.                       |
@@ -31,7 +30,6 @@
 | Backups SQLite                                  | **Litestream** → Backblaze B2 (o Cloudflare R2)          | Replicación continua del WAL. Recuperación point-in-time. Coste céntimos.                                                         |
 | Uptime                                          | **UptimeRobot** free                                     | 50 monitores gratis, más que suficiente para 15-20 instancias.                                                                    |
 | Errores                                         | **Sentry** free                                          | 5.000 errores/mes, suficiente para detectar problemas reales antes que el cliente.                                                |
-
 
 > Cosas que **deliberadamente no entran** todavía: CDN externo (Next.js standalone sirve assets bien), Redis (no hay nada que cachear que justifique la pieza extra), colas de tareas dedicadas (los pocos jobs son crons de sistema o rutas API protegidas).
 
@@ -729,5 +727,4 @@ Checklist final, antes de pasar al Bloque 10:
 - Litestream replicando, restauración probada al menos una vez
 - UptimeRobot monitorizando, Sentry capturando un error de prueba
 - Runbook escrito en el README
-- Sin ninguna dependencia de `@supabase/`* en `package.json`
-
+- Sin ninguna dependencia de `@supabase/`\* en `package.json`

@@ -25,7 +25,9 @@ export async function GET(
   // está en allowlist, validamos containment del path resuelto. Cinturón +
   // tirantes — barato y elimina cualquier escape sutil (symlinks, etc).
   const uploadsDir = getUploadsDir()
-  const prefix = uploadsDir.endsWith(path.sep) ? uploadsDir : uploadsDir + path.sep
+  const prefix = uploadsDir.endsWith(path.sep)
+    ? uploadsDir
+    : uploadsDir + path.sep
   const resolved = path.resolve(uploadsDir, segments[0], segments[1])
   if (!resolved.startsWith(prefix)) {
     return new Response('Bad Request', { status: 400 })

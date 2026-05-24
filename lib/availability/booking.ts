@@ -28,14 +28,8 @@ import {
   salons,
   services,
 } from '@/lib/db/schema'
-import {
-  BookingValidationError,
-  type BookingErrorCode,
-} from './errors'
-import {
-  madridLocalDateOf,
-  madridLocalTimeOf,
-} from './time'
+import { BookingValidationError, type BookingErrorCode } from './errors'
+import { madridLocalDateOf, madridLocalTimeOf } from './time'
 
 export type CreateBookingInput = {
   salonId: number
@@ -55,11 +49,7 @@ export type CreateBookingResult =
 
 type TxDb = Parameters<Parameters<typeof db.transaction>[0]>[0]
 
-const ACTIVE_BOOKING_STATUSES = [
-  'pending',
-  'confirmed',
-  'in_progress',
-] as const
+const ACTIVE_BOOKING_STATUSES = ['pending', 'confirmed', 'in_progress'] as const
 
 type ValidatedSnapshot = {
   service: {
@@ -429,7 +419,9 @@ export async function validateAndCreateBooking(
           'Servicio no encontrado en este salón.',
         )
       }
-      const endsAt = new Date(startsAt.getTime() + svc.duration_minutes * 60_000)
+      const endsAt = new Date(
+        startsAt.getTime() + svc.duration_minutes * 60_000,
+      )
 
       const { service } = validateBookingItemInterval(tx, {
         salonId: input.salonId,
@@ -521,4 +513,3 @@ export async function validateAndCreateBooking(
     }
   }
 }
-

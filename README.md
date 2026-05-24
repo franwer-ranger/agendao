@@ -169,7 +169,7 @@ Mientras no haya un dominio real apuntando a la IP, `kamal setup` fallará al in
          - 65.109.12.199
        options:
          publish:
-           - "80:3000"
+           - '80:3000'
    ```
 3. `kamal setup` → la app queda en `http://<IP>/`.
 

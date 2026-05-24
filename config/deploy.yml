@@ -35,9 +35,9 @@ builder:
 env:
   clear:
     NODE_ENV: production
-    PORT: "3000"
+    PORT: '3000'
     HOSTNAME: 0.0.0.0
-    NEXT_TELEMETRY_DISABLED: "1"
+    NEXT_TELEMETRY_DISABLED: '1'
     # Override del default del Dockerfile (/app/data/dev.db).
     DATABASE_URL: /app/data/prod.db
     # APP_URL lo lee lib/storage.ts para construir URLs absolutas.
@@ -51,7 +51,7 @@ env:
 
 # Host dir debe ser owned por uid 1001 (usuario nextjs del contenedor).
 volumes:
-  - "/var/lib/agendao/data:/app/data"
+  - '/var/lib/agendao/data:/app/data'
 
 # Crítico para SQLite: garantiza stop-then-start.
 boot:

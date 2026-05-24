@@ -38,6 +38,8 @@ export function mapBookingError(err: unknown): BookingError {
   return {
     code: 'UNKNOWN',
     message:
-      err instanceof Error ? err.message : 'Error desconocido al crear la reserva.',
+      err instanceof Error
+        ? err.message
+        : 'Error desconocido al crear la reserva.',
   }
 }

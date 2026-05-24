@@ -2,12 +2,7 @@ import 'server-only'
 import { and, asc, eq } from 'drizzle-orm'
 
 import { db } from '@/lib/db'
-import {
-  booking_items,
-  bookings,
-  clients,
-  employees,
-} from '@/lib/db/schema'
+import { booking_items, bookings, clients, employees } from '@/lib/db/schema'
 
 export type PublicBookingSummary = {
   publicId: string
