@@ -1,4 +1,7 @@
-import { createAdminClient } from '@/lib/supabase/admin'
+import { and, asc, count, desc, eq, inArray, like, sql } from 'drizzle-orm'
+
+import { db } from '@/lib/db'
+import { employee_services, employees, services } from '@/lib/db/schema'
 
 export type ServiceListRow = {
   id: number
@@ -36,37 +39,56 @@ export async function listServices({
   salonId: number
   q?: string
 }): Promise<ServiceListRow[]> {
-  const supabase = createAdminClient()
+  const trimmed = q?.trim()
+  const where =
+    trimmed && trimmed.length > 0
+      ? and(
+          eq(services.salon_id, salonId),
+          like(sql`lower(${services.name})`, `%${trimmed.toLowerCase()}%`),
+        )
+      : eq(services.salon_id, salonId)
 
-  let query = supabase
-    .from('services')
-    .select(
-      'id, name, duration_minutes, price_cents, max_concurrent, is_active, display_order, employee_services(count)',
+  const rows = db
+    .select({
+      id: services.id,
+      name: services.name,
+      duration_minutes: services.duration_minutes,
+      price_cents: services.price_cents,
+      max_concurrent: services.max_concurrent,
+      is_active: services.is_active,
+      display_order: services.display_order,
+    })
+    .from(services)
+    .where(where)
+    .orderBy(
+      desc(services.is_active),
+      asc(services.display_order),
+      asc(services.name),
     )
-    .eq('salon_id', salonId)
-    .order('is_active', { ascending: false })
-    .order('display_order', { ascending: true })
-    .order('name', { ascending: true })
+    .all()
 
-  if (q && q.trim().length > 0) {
-    query = query.ilike('name', `%${q.trim()}%`)
-  }
+  if (rows.length === 0) return []
 
-  const { data, error } = await query
-  if (error) throw error
+  const counts = db
+    .select({
+      service_id: employee_services.service_id,
+      c: count(),
+    })
+    .from(employee_services)
+    .where(
+      inArray(
+        employee_services.service_id,
+        rows.map((r) => r.id),
+      ),
+    )
+    .groupBy(employee_services.service_id)
+    .all()
 
-  return (data ?? []).map((row) => ({
-    id: row.id,
-    name: row.name,
-    duration_minutes: row.duration_minutes,
-    price_cents: row.price_cents,
-    max_concurrent: row.max_concurrent,
-    is_active: row.is_active,
-    display_order: row.display_order,
-    employee_count:
-      Array.isArray(row.employee_services) && row.employee_services[0]
-        ? (row.employee_services[0] as { count: number }).count
-        : 0,
+  const countBy = new Map(counts.map((r) => [r.service_id, r.c]))
+
+  return rows.map((r) => ({
+    ...r,
+    employee_count: countBy.get(r.id) ?? 0,
   }))
 }
 
@@ -74,36 +96,32 @@ export async function getServiceById(
   id: number,
   salonId: number,
 ): Promise<ServiceDetail | null> {
-  const supabase = createAdminClient()
+  const row = db
+    .select({
+      id: services.id,
+      salon_id: services.salon_id,
+      name: services.name,
+      description: services.description,
+      duration_minutes: services.duration_minutes,
+      price_cents: services.price_cents,
+      max_concurrent: services.max_concurrent,
+      is_active: services.is_active,
+    })
+    .from(services)
+    .where(and(eq(services.id, id), eq(services.salon_id, salonId)))
+    .get()
 
-  const { data, error } = await supabase
-    .from('services')
-    .select(
-      'id, salon_id, name, description, duration_minutes, price_cents, max_concurrent, is_active, employee_services(employee_id)',
-    )
-    .eq('id', id)
-    .eq('salon_id', salonId)
-    .maybeSingle()
+  if (!row) return null
 
-  if (error) throw error
-  if (!data) return null
-
-  const employee_ids = Array.isArray(data.employee_services)
-    ? (data.employee_services as { employee_id: number }[]).map(
-        (r) => r.employee_id,
-      )
-    : []
+  const empRows = db
+    .select({ employee_id: employee_services.employee_id })
+    .from(employee_services)
+    .where(eq(employee_services.service_id, id))
+    .all()
 
   return {
-    id: data.id,
-    salon_id: data.salon_id,
-    name: data.name,
-    description: data.description,
-    duration_minutes: data.duration_minutes,
-    price_cents: data.price_cents,
-    max_concurrent: data.max_concurrent,
-    is_active: data.is_active,
-    employee_ids,
+    ...row,
+    employee_ids: empRows.map((r) => r.employee_id),
   }
 }
 
@@ -120,29 +138,44 @@ export type ServiceWithEmployees = {
 export async function listActiveServicesWithEmployees(
   salonId: number,
 ): Promise<ServiceWithEmployees[]> {
-  const supabase = createAdminClient()
-  const { data, error } = await supabase
-    .from('services')
-    .select(
-      'id, name, duration_minutes, price_cents, is_active, display_order, employee_services(employee_id)',
+  const rows = db
+    .select({
+      id: services.id,
+      name: services.name,
+      duration_minutes: services.duration_minutes,
+      price_cents: services.price_cents,
+    })
+    .from(services)
+    .where(and(eq(services.salon_id, salonId), eq(services.is_active, true)))
+    .orderBy(asc(services.display_order), asc(services.name))
+    .all()
+
+  if (rows.length === 0) return []
+
+  const assignments = db
+    .select({
+      service_id: employee_services.service_id,
+      employee_id: employee_services.employee_id,
+    })
+    .from(employee_services)
+    .where(
+      inArray(
+        employee_services.service_id,
+        rows.map((r) => r.id),
+      ),
     )
-    .eq('salon_id', salonId)
-    .eq('is_active', true)
-    .order('display_order', { ascending: true })
-    .order('name', { ascending: true })
+    .all()
 
-  if (error) throw error
+  const empsBy = new Map<number, number[]>()
+  for (const a of assignments) {
+    const list = empsBy.get(a.service_id)
+    if (list) list.push(a.employee_id)
+    else empsBy.set(a.service_id, [a.employee_id])
+  }
 
-  return (data ?? []).map((row) => ({
-    id: row.id,
-    name: row.name,
-    duration_minutes: row.duration_minutes,
-    price_cents: row.price_cents,
-    employee_ids: Array.isArray(row.employee_services)
-      ? (row.employee_services as { employee_id: number }[]).map(
-          (r) => r.employee_id,
-        )
-      : [],
+  return rows.map((r) => ({
+    ...r,
+    employee_ids: empsBy.get(r.id) ?? [],
   }))
 }
 
@@ -160,30 +193,31 @@ export type PublicServiceRow = {
 export async function listPublicServices(
   salonId: number,
 ): Promise<PublicServiceRow[]> {
-  const supabase = createAdminClient()
-  const { data, error } = await supabase
-    .from('services')
-    .select('id, name, description, duration_minutes, price_cents')
-    .eq('salon_id', salonId)
-    .eq('is_active', true)
-    .order('display_order', { ascending: true })
-    .order('name', { ascending: true })
-
-  if (error) throw error
-  return (data ?? []) as PublicServiceRow[]
+  return db
+    .select({
+      id: services.id,
+      name: services.name,
+      description: services.description,
+      duration_minutes: services.duration_minutes,
+      price_cents: services.price_cents,
+    })
+    .from(services)
+    .where(and(eq(services.salon_id, salonId), eq(services.is_active, true)))
+    .orderBy(asc(services.display_order), asc(services.name))
+    .all()
 }
 
 export async function listEmployeesForSalon(
   salonId: number,
 ): Promise<EmployeeOption[]> {
-  const supabase = createAdminClient()
-  const { data, error } = await supabase
-    .from('employees')
-    .select('id, display_name, is_active')
-    .eq('salon_id', salonId)
-    .order('display_order', { ascending: true })
-    .order('display_name', { ascending: true })
-
-  if (error) throw error
-  return data ?? []
+  return db
+    .select({
+      id: employees.id,
+      display_name: employees.display_name,
+      is_active: employees.is_active,
+    })
+    .from(employees)
+    .where(eq(employees.salon_id, salonId))
+    .orderBy(asc(employees.display_order), asc(employees.display_name))
+    .all()
 }

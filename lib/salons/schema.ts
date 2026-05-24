@@ -285,20 +285,19 @@ export function parseLegalFormData(formData: FormData) {
 
 // ─── Logo (validación de archivo) ──────────────────────────────────────────
 
-export const LOGO_MAX_BYTES = 2 * 1024 * 1024 // 2 MB
+export const LOGO_MAX_BYTES = 5 * 1024 * 1024 // 5 MB
 export const LOGO_ALLOWED_MIME = [
   'image/png',
   'image/jpeg',
   'image/webp',
-  'image/svg+xml',
 ] as const
 
 export function validateLogoFile(file: File): string | null {
   if (!(LOGO_ALLOWED_MIME as readonly string[]).includes(file.type)) {
-    return 'Formato no soportado (usa PNG, JPG, WEBP o SVG)'
+    return 'Formato no soportado (usa PNG, JPG o WEBP)'
   }
   if (file.size > LOGO_MAX_BYTES) {
-    return 'El archivo supera 2 MB'
+    return 'El archivo supera 5 MB'
   }
   return null
 }

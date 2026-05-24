@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "0f6dda08-0e42-4b8a-9561-57e33ca60c68",
+  "id": "37e897d3-639a-4e4e-ad7d-a608dacb106a",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "app_users": {
@@ -55,9 +55,7 @@
       "indexes": {
         "app_users_salon_id_idx": {
           "name": "app_users_salon_id_idx",
-          "columns": [
-            "salon_id"
-          ],
+          "columns": ["salon_id"],
           "isUnique": false
         }
       },
@@ -66,12 +64,8 @@
           "name": "app_users_salon_id_salons_id_fk",
           "tableFrom": "app_users",
           "tableTo": "salons",
-          "columnsFrom": [
-            "salon_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["salon_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -170,48 +164,33 @@
       "indexes": {
         "booking_items_booking_position_unique": {
           "name": "booking_items_booking_position_unique",
-          "columns": [
-            "booking_id",
-            "position"
-          ],
+          "columns": ["booking_id", "position"],
           "isUnique": true
         },
         "booking_items_booking_id_idx": {
           "name": "booking_items_booking_id_idx",
-          "columns": [
-            "booking_id"
-          ],
+          "columns": ["booking_id"],
           "isUnique": false
         },
         "booking_items_service_id_idx": {
           "name": "booking_items_service_id_idx",
-          "columns": [
-            "service_id"
-          ],
+          "columns": ["service_id"],
           "isUnique": false
         },
         "booking_items_employee_id_idx": {
           "name": "booking_items_employee_id_idx",
-          "columns": [
-            "employee_id"
-          ],
+          "columns": ["employee_id"],
           "isUnique": false
         },
         "booking_items_employee_starts_active_idx": {
           "name": "booking_items_employee_starts_active_idx",
-          "columns": [
-            "employee_id",
-            "starts_at"
-          ],
+          "columns": ["employee_id", "starts_at"],
           "isUnique": false,
           "where": "\"booking_items\".\"booking_status\" in ('pending','confirmed','in_progress')"
         },
         "booking_items_service_starts_active_idx": {
           "name": "booking_items_service_starts_active_idx",
-          "columns": [
-            "service_id",
-            "starts_at"
-          ],
+          "columns": ["service_id", "starts_at"],
           "isUnique": false,
           "where": "\"booking_items\".\"booking_status\" in ('pending','confirmed','in_progress')"
         }
@@ -221,12 +200,8 @@
           "name": "booking_items_booking_id_bookings_id_fk",
           "tableFrom": "booking_items",
           "tableTo": "bookings",
-          "columnsFrom": [
-            "booking_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["booking_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -234,12 +209,8 @@
           "name": "booking_items_salon_id_salons_id_fk",
           "tableFrom": "booking_items",
           "tableTo": "salons",
-          "columnsFrom": [
-            "salon_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["salon_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -247,12 +218,8 @@
           "name": "booking_items_service_id_services_id_fk",
           "tableFrom": "booking_items",
           "tableTo": "services",
-          "columnsFrom": [
-            "service_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["service_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -260,12 +227,8 @@
           "name": "booking_items_employee_id_employees_id_fk",
           "tableFrom": "booking_items",
           "tableTo": "employees",
-          "columnsFrom": [
-            "employee_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["employee_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -341,25 +304,17 @@
       "indexes": {
         "booking_notifications_booking_kind_version_unique": {
           "name": "booking_notifications_booking_kind_version_unique",
-          "columns": [
-            "booking_id",
-            "kind",
-            "version"
-          ],
+          "columns": ["booking_id", "kind", "version"],
           "isUnique": true
         },
         "booking_notifications_salon_idx": {
           "name": "booking_notifications_salon_idx",
-          "columns": [
-            "salon_id"
-          ],
+          "columns": ["salon_id"],
           "isUnique": false
         },
         "booking_notifications_booking_idx": {
           "name": "booking_notifications_booking_idx",
-          "columns": [
-            "booking_id"
-          ],
+          "columns": ["booking_id"],
           "isUnique": false
         }
       },
@@ -368,12 +323,8 @@
           "name": "booking_notifications_booking_id_bookings_id_fk",
           "tableFrom": "booking_notifications",
           "tableTo": "bookings",
-          "columnsFrom": [
-            "booking_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["booking_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -381,12 +332,8 @@
           "name": "booking_notifications_salon_id_salons_id_fk",
           "tableFrom": "booking_notifications",
           "tableTo": "salons",
-          "columnsFrom": [
-            "salon_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["salon_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -471,9 +418,7 @@
       "indexes": {
         "booking_status_events_booking_id_idx": {
           "name": "booking_status_events_booking_id_idx",
-          "columns": [
-            "booking_id"
-          ],
+          "columns": ["booking_id"],
           "isUnique": false
         }
       },
@@ -482,12 +427,8 @@
           "name": "booking_status_events_booking_id_bookings_id_fk",
           "tableFrom": "booking_status_events",
           "tableTo": "bookings",
-          "columnsFrom": [
-            "booking_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["booking_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -495,12 +436,8 @@
           "name": "booking_status_events_salon_id_salons_id_fk",
           "tableFrom": "booking_status_events",
           "tableTo": "salons",
-          "columnsFrom": [
-            "salon_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["salon_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -572,16 +509,12 @@
       "indexes": {
         "booking_tokens_token_hash_unique": {
           "name": "booking_tokens_token_hash_unique",
-          "columns": [
-            "token_hash"
-          ],
+          "columns": ["token_hash"],
           "isUnique": true
         },
         "booking_tokens_booking_id_idx": {
           "name": "booking_tokens_booking_id_idx",
-          "columns": [
-            "booking_id"
-          ],
+          "columns": ["booking_id"],
           "isUnique": false
         }
       },
@@ -590,12 +523,8 @@
           "name": "booking_tokens_booking_id_bookings_id_fk",
           "tableFrom": "booking_tokens",
           "tableTo": "bookings",
-          "columnsFrom": [
-            "booking_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["booking_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -731,38 +660,27 @@
       "indexes": {
         "bookings_public_id_unique": {
           "name": "bookings_public_id_unique",
-          "columns": [
-            "public_id"
-          ],
+          "columns": ["public_id"],
           "isUnique": true
         },
         "bookings_idempotency_key_unique": {
           "name": "bookings_idempotency_key_unique",
-          "columns": [
-            "idempotency_key"
-          ],
+          "columns": ["idempotency_key"],
           "isUnique": true
         },
         "bookings_salon_id_idx": {
           "name": "bookings_salon_id_idx",
-          "columns": [
-            "salon_id"
-          ],
+          "columns": ["salon_id"],
           "isUnique": false
         },
         "bookings_client_id_idx": {
           "name": "bookings_client_id_idx",
-          "columns": [
-            "client_id"
-          ],
+          "columns": ["client_id"],
           "isUnique": false
         },
         "bookings_salon_starts_idx": {
           "name": "bookings_salon_starts_idx",
-          "columns": [
-            "salon_id",
-            "starts_at"
-          ],
+          "columns": ["salon_id", "starts_at"],
           "isUnique": false
         }
       },
@@ -771,12 +689,8 @@
           "name": "bookings_salon_id_salons_id_fk",
           "tableFrom": "bookings",
           "tableTo": "salons",
-          "columnsFrom": [
-            "salon_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["salon_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -784,12 +698,8 @@
           "name": "bookings_client_id_clients_id_fk",
           "tableFrom": "bookings",
           "tableTo": "clients",
-          "columnsFrom": [
-            "client_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["client_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -876,27 +786,19 @@
       "indexes": {
         "clients_salon_email_unique": {
           "name": "clients_salon_email_unique",
-          "columns": [
-            "salon_id",
-            "email"
-          ],
+          "columns": ["salon_id", "email"],
           "isUnique": true,
           "where": "\"clients\".\"email\" is not null"
         },
         "clients_salon_phone_unique": {
           "name": "clients_salon_phone_unique",
-          "columns": [
-            "salon_id",
-            "phone"
-          ],
+          "columns": ["salon_id", "phone"],
           "isUnique": true,
           "where": "\"clients\".\"phone\" is not null"
         },
         "clients_salon_id_idx": {
           "name": "clients_salon_id_idx",
-          "columns": [
-            "salon_id"
-          ],
+          "columns": ["salon_id"],
           "isUnique": false
         }
       },
@@ -905,12 +807,8 @@
           "name": "clients_salon_id_salons_id_fk",
           "tableFrom": "clients",
           "tableTo": "salons",
-          "columnsFrom": [
-            "salon_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["salon_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -996,9 +894,7 @@
       "indexes": {
         "employee_recurring_breaks_employee_id_idx": {
           "name": "employee_recurring_breaks_employee_id_idx",
-          "columns": [
-            "employee_id"
-          ],
+          "columns": ["employee_id"],
           "isUnique": false
         },
         "employee_recurring_breaks_lookup_idx": {
@@ -1017,12 +913,8 @@
           "name": "employee_recurring_breaks_employee_id_employees_id_fk",
           "tableFrom": "employee_recurring_breaks",
           "tableTo": "employees",
-          "columnsFrom": [
-            "employee_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["employee_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1073,9 +965,7 @@
       "indexes": {
         "employee_services_service_id_idx": {
           "name": "employee_services_service_id_idx",
-          "columns": [
-            "service_id"
-          ],
+          "columns": ["service_id"],
           "isUnique": false
         }
       },
@@ -1084,12 +974,8 @@
           "name": "employee_services_employee_id_employees_id_fk",
           "tableFrom": "employee_services",
           "tableTo": "employees",
-          "columnsFrom": [
-            "employee_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["employee_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1097,22 +983,15 @@
           "name": "employee_services_service_id_services_id_fk",
           "tableFrom": "employee_services",
           "tableTo": "services",
-          "columnsFrom": [
-            "service_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["service_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
         "employee_services_employee_id_service_id_pk": {
-          "columns": [
-            "employee_id",
-            "service_id"
-          ],
+          "columns": ["employee_id", "service_id"],
           "name": "employee_services_employee_id_service_id_pk"
         }
       },
@@ -1183,9 +1062,7 @@
       "indexes": {
         "employee_time_off_employee_id_idx": {
           "name": "employee_time_off_employee_id_idx",
-          "columns": [
-            "employee_id"
-          ],
+          "columns": ["employee_id"],
           "isUnique": false
         }
       },
@@ -1194,12 +1071,8 @@
           "name": "employee_time_off_employee_id_employees_id_fk",
           "tableFrom": "employee_time_off",
           "tableTo": "employees",
-          "columnsFrom": [
-            "employee_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["employee_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1207,12 +1080,8 @@
           "name": "employee_time_off_created_by_app_users_id_fk",
           "tableFrom": "employee_time_off",
           "tableTo": "app_users",
-          "columnsFrom": [
-            "created_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["created_by"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1295,9 +1164,7 @@
       "indexes": {
         "employee_weekly_schedule_employee_id_idx": {
           "name": "employee_weekly_schedule_employee_id_idx",
-          "columns": [
-            "employee_id"
-          ],
+          "columns": ["employee_id"],
           "isUnique": false
         },
         "employee_weekly_schedule_lookup_idx": {
@@ -1316,12 +1183,8 @@
           "name": "employee_weekly_schedule_employee_id_employees_id_fk",
           "tableFrom": "employee_weekly_schedule",
           "tableTo": "employees",
-          "columnsFrom": [
-            "employee_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["employee_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1430,24 +1293,17 @@
       "indexes": {
         "employees_salon_slug_unique": {
           "name": "employees_salon_slug_unique",
-          "columns": [
-            "salon_id",
-            "slug"
-          ],
+          "columns": ["salon_id", "slug"],
           "isUnique": true
         },
         "employees_salon_id_idx": {
           "name": "employees_salon_id_idx",
-          "columns": [
-            "salon_id"
-          ],
+          "columns": ["salon_id"],
           "isUnique": false
         },
         "employees_app_user_id_idx": {
           "name": "employees_app_user_id_idx",
-          "columns": [
-            "app_user_id"
-          ],
+          "columns": ["app_user_id"],
           "isUnique": false,
           "where": "\"employees\".\"app_user_id\" is not null"
         }
@@ -1457,12 +1313,8 @@
           "name": "employees_salon_id_salons_id_fk",
           "tableFrom": "employees",
           "tableTo": "salons",
-          "columnsFrom": [
-            "salon_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["salon_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -1470,12 +1322,8 @@
           "name": "employees_app_user_id_app_users_id_fk",
           "tableFrom": "employees",
           "tableTo": "app_users",
-          "columnsFrom": [
-            "app_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["app_user_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -1546,9 +1394,7 @@
       "indexes": {
         "salon_closures_salon_id_idx": {
           "name": "salon_closures_salon_id_idx",
-          "columns": [
-            "salon_id"
-          ],
+          "columns": ["salon_id"],
           "isUnique": false
         }
       },
@@ -1557,12 +1403,8 @@
           "name": "salon_closures_salon_id_salons_id_fk",
           "tableFrom": "salon_closures",
           "tableTo": "salons",
-          "columnsFrom": [
-            "salon_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["salon_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1570,12 +1412,8 @@
           "name": "salon_closures_created_by_app_users_id_fk",
           "tableFrom": "salon_closures",
           "tableTo": "app_users",
-          "columnsFrom": [
-            "created_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["created_by"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1639,17 +1477,12 @@
       "indexes": {
         "salon_working_hours_salon_weekday_unique": {
           "name": "salon_working_hours_salon_weekday_unique",
-          "columns": [
-            "salon_id",
-            "weekday"
-          ],
+          "columns": ["salon_id", "weekday"],
           "isUnique": true
         },
         "salon_working_hours_salon_idx": {
           "name": "salon_working_hours_salon_idx",
-          "columns": [
-            "salon_id"
-          ],
+          "columns": ["salon_id"],
           "isUnique": false
         }
       },
@@ -1658,12 +1491,8 @@
           "name": "salon_working_hours_salon_id_salons_id_fk",
           "tableFrom": "salon_working_hours",
           "tableTo": "salons",
-          "columnsFrom": [
-            "salon_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["salon_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1823,9 +1652,7 @@
       "indexes": {
         "salons_slug_unique": {
           "name": "salons_slug_unique",
-          "columns": [
-            "slug"
-          ],
+          "columns": ["slug"],
           "isUnique": true
         }
       },
@@ -1945,17 +1772,12 @@
       "indexes": {
         "services_salon_slug_unique": {
           "name": "services_salon_slug_unique",
-          "columns": [
-            "salon_id",
-            "slug"
-          ],
+          "columns": ["salon_id", "slug"],
           "isUnique": true
         },
         "services_salon_id_idx": {
           "name": "services_salon_id_idx",
-          "columns": [
-            "salon_id"
-          ],
+          "columns": ["salon_id"],
           "isUnique": false
         }
       },
@@ -1964,12 +1786,8 @@
           "name": "services_salon_id_salons_id_fk",
           "tableFrom": "services",
           "tableTo": "salons",
-          "columnsFrom": [
-            "salon_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["salon_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }

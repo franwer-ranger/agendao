@@ -1,10 +1,6 @@
-import { cookies } from 'next/headers'
-import { ClientIcon } from '@/components/ui/client-icon'
-import { SidebarNavLink } from './_components/sidebar-nav-link'
-import { getCurrentSalon } from '@/lib/salon'
-import { Toaster } from '@/components/ui/sonner'
-import { Separator } from '@/components/ui/separator'
 import { ThemeToggle } from '@/components/theme-toggle'
+import { ClientIcon } from '@/components/ui/client-icon'
+import { Separator } from '@/components/ui/separator'
 import {
   Sidebar,
   SidebarContent,
@@ -19,6 +15,10 @@ import {
   SidebarRail,
   SidebarTrigger,
 } from '@/components/ui/sidebar'
+import { Toaster } from '@/components/ui/sonner'
+import { getCurrentSalon } from '@/lib/salon'
+import { cookies } from 'next/headers'
+import { SidebarNavLink } from './_components/sidebar-nav-link'
 
 // Admin dashboard is request-time only: it reads from a service-role-backed
 // client and will gain cookie-based auth in Block 10. Skip the static

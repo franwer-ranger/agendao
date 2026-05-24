@@ -1,5 +1,25 @@
-import { parseTstzRange } from '@/lib/availability/intervals'
-import { createAdminClient } from '@/lib/supabase/admin'
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNull,
+  like,
+  sql,
+} from 'drizzle-orm'
+
+import { db } from '@/lib/db'
+import {
+  employee_recurring_breaks,
+  employee_services,
+  employee_time_off,
+  employee_weekly_schedule,
+  employees,
+  services,
+} from '@/lib/db/schema'
 
 // ─── Tipos ─────────────────────────────────────────────────────────────────
 
@@ -66,17 +86,17 @@ export async function getPublicEmployeeName({
   salonId: number
   employeeId: number
 }): Promise<string | null> {
-  const supabase = createAdminClient()
-  const { data, error } = await supabase
-    .from('employees')
-    .select('display_name, is_active')
-    .eq('id', employeeId)
-    .eq('salon_id', salonId)
-    .maybeSingle()
+  const row = db
+    .select({
+      display_name: employees.display_name,
+      is_active: employees.is_active,
+    })
+    .from(employees)
+    .where(and(eq(employees.id, employeeId), eq(employees.salon_id, salonId)))
+    .get()
 
-  if (error) throw error
-  if (!data || !data.is_active) return null
-  return data.display_name as string
+  if (!row || !row.is_active) return null
+  return row.display_name
 }
 
 export type PublicEmployeeRow = {
@@ -95,22 +115,26 @@ export async function listPublicEmployeesForService({
   salonId: number
   serviceId: number
 }): Promise<PublicEmployeeRow[]> {
-  const supabase = createAdminClient()
-  const { data, error } = await supabase
-    .from('employees')
-    .select('id, display_name, bio, employee_services!inner(service_id)')
-    .eq('salon_id', salonId)
-    .eq('is_active', true)
-    .eq('employee_services.service_id', serviceId)
-    .order('display_order', { ascending: true })
-    .order('display_name', { ascending: true })
-
-  if (error) throw error
-  return (data ?? []).map((row) => ({
-    id: row.id as number,
-    display_name: row.display_name as string,
-    bio: (row.bio as string | null) ?? null,
-  }))
+  return db
+    .select({
+      id: employees.id,
+      display_name: employees.display_name,
+      bio: employees.bio,
+    })
+    .from(employees)
+    .innerJoin(
+      employee_services,
+      eq(employee_services.employee_id, employees.id),
+    )
+    .where(
+      and(
+        eq(employees.salon_id, salonId),
+        eq(employees.is_active, true),
+        eq(employee_services.service_id, serviceId),
+      ),
+    )
+    .orderBy(asc(employees.display_order), asc(employees.display_name))
+    .all()
 }
 
 // ─── Listado ───────────────────────────────────────────────────────────────
@@ -122,35 +146,57 @@ export async function listEmployees({
   salonId: number
   q?: string
 }): Promise<EmployeeListRow[]> {
-  const supabase = createAdminClient()
+  const trimmed = q?.trim()
+  const where =
+    trimmed && trimmed.length > 0
+      ? and(
+          eq(employees.salon_id, salonId),
+          like(
+            sql`lower(${employees.display_name})`,
+            `%${trimmed.toLowerCase()}%`,
+          ),
+        )
+      : eq(employees.salon_id, salonId)
 
-  let query = supabase
-    .from('employees')
-    .select(
-      'id, display_name, is_active, display_order, color_hex, employee_services(count)',
+  const rows = db
+    .select({
+      id: employees.id,
+      display_name: employees.display_name,
+      is_active: employees.is_active,
+      display_order: employees.display_order,
+      color_hex: employees.color_hex,
+    })
+    .from(employees)
+    .where(where)
+    .orderBy(
+      desc(employees.is_active),
+      asc(employees.display_order),
+      asc(employees.display_name),
     )
-    .eq('salon_id', salonId)
-    .order('is_active', { ascending: false })
-    .order('display_order', { ascending: true })
-    .order('display_name', { ascending: true })
+    .all()
 
-  if (q && q.trim().length > 0) {
-    query = query.ilike('display_name', `%${q.trim()}%`)
-  }
+  if (rows.length === 0) return []
 
-  const { data, error } = await query
-  if (error) throw error
+  const counts = db
+    .select({
+      employee_id: employee_services.employee_id,
+      c: count(),
+    })
+    .from(employee_services)
+    .where(
+      inArray(
+        employee_services.employee_id,
+        rows.map((r) => r.id),
+      ),
+    )
+    .groupBy(employee_services.employee_id)
+    .all()
 
-  return (data ?? []).map((row) => ({
-    id: row.id,
-    display_name: row.display_name,
-    is_active: row.is_active,
-    display_order: row.display_order,
-    color_hex: row.color_hex,
-    service_count:
-      Array.isArray(row.employee_services) && row.employee_services[0]
-        ? (row.employee_services[0] as { count: number }).count
-        : 0,
+  const countBy = new Map(counts.map((r) => [r.employee_id, r.c]))
+
+  return rows.map((r) => ({
+    ...r,
+    service_count: countBy.get(r.id) ?? 0,
   }))
 }
 
@@ -160,35 +206,31 @@ export async function getEmployeeById(
   id: number,
   salonId: number,
 ): Promise<EmployeeDetail | null> {
-  const supabase = createAdminClient()
+  const row = db
+    .select({
+      id: employees.id,
+      salon_id: employees.salon_id,
+      display_name: employees.display_name,
+      bio: employees.bio,
+      is_active: employees.is_active,
+      display_order: employees.display_order,
+      color_hex: employees.color_hex,
+    })
+    .from(employees)
+    .where(and(eq(employees.id, id), eq(employees.salon_id, salonId)))
+    .get()
 
-  const { data, error } = await supabase
-    .from('employees')
-    .select(
-      'id, salon_id, display_name, bio, is_active, display_order, color_hex, employee_services(service_id)',
-    )
-    .eq('id', id)
-    .eq('salon_id', salonId)
-    .maybeSingle()
+  if (!row) return null
 
-  if (error) throw error
-  if (!data) return null
-
-  const service_ids = Array.isArray(data.employee_services)
-    ? (data.employee_services as { service_id: number }[]).map(
-        (r) => r.service_id,
-      )
-    : []
+  const svcRows = db
+    .select({ service_id: employee_services.service_id })
+    .from(employee_services)
+    .where(eq(employee_services.employee_id, id))
+    .all()
 
   return {
-    id: data.id,
-    salon_id: data.salon_id,
-    display_name: data.display_name,
-    bio: data.bio,
-    is_active: data.is_active,
-    display_order: data.display_order,
-    color_hex: data.color_hex,
-    service_ids,
+    ...row,
+    service_ids: svcRows.map((r) => r.service_id),
   }
 }
 
@@ -197,23 +239,33 @@ export async function getEmployeeById(
 export async function getWeeklySchedule(
   employeeId: number,
 ): Promise<WeeklyShift[]> {
-  const supabase = createAdminClient()
+  const rows = db
+    .select({
+      id: employee_weekly_schedule.id,
+      weekday: employee_weekly_schedule.weekday,
+      starts_at: employee_weekly_schedule.starts_at,
+      ends_at: employee_weekly_schedule.ends_at,
+    })
+    .from(employee_weekly_schedule)
+    .where(
+      and(
+        eq(employee_weekly_schedule.employee_id, employeeId),
+        isNull(employee_weekly_schedule.effective_until),
+      ),
+    )
+    .orderBy(
+      asc(employee_weekly_schedule.weekday),
+      asc(employee_weekly_schedule.starts_at),
+    )
+    .all()
 
-  const { data, error } = await supabase
-    .from('employee_weekly_schedule')
-    .select('id, weekday, starts_at, ends_at')
-    .eq('employee_id', employeeId)
-    .is('effective_until', null)
-    .order('weekday', { ascending: true })
-    .order('starts_at', { ascending: true })
-
-  if (error) throw error
-  return (data ?? []).map((r) => ({
+  return rows.map((r) => ({
     id: r.id,
     weekday: r.weekday,
-    // Postgres devuelve `time` como 'HH:MM:SS'. Recortamos a HH:MM para el editor.
-    starts_at: String(r.starts_at).slice(0, 5),
-    ends_at: String(r.ends_at).slice(0, 5),
+    // En SQLite guardamos 'HH:MM' directamente; .slice defensivo por si
+    // alguna fila histórica trajera segundos.
+    starts_at: r.starts_at.slice(0, 5),
+    ends_at: r.ends_at.slice(0, 5),
   }))
 }
 
@@ -222,22 +274,32 @@ export async function getWeeklySchedule(
 export async function getRecurringBreaks(
   employeeId: number,
 ): Promise<RecurringBreak[]> {
-  const supabase = createAdminClient()
+  const rows = db
+    .select({
+      id: employee_recurring_breaks.id,
+      weekday: employee_recurring_breaks.weekday,
+      starts_at: employee_recurring_breaks.starts_at,
+      ends_at: employee_recurring_breaks.ends_at,
+      label: employee_recurring_breaks.label,
+    })
+    .from(employee_recurring_breaks)
+    .where(
+      and(
+        eq(employee_recurring_breaks.employee_id, employeeId),
+        isNull(employee_recurring_breaks.effective_until),
+      ),
+    )
+    .orderBy(
+      asc(employee_recurring_breaks.weekday),
+      asc(employee_recurring_breaks.starts_at),
+    )
+    .all()
 
-  const { data, error } = await supabase
-    .from('employee_recurring_breaks')
-    .select('id, weekday, starts_at, ends_at, label')
-    .eq('employee_id', employeeId)
-    .is('effective_until', null)
-    .order('weekday', { ascending: true })
-    .order('starts_at', { ascending: true })
-
-  if (error) throw error
-  return (data ?? []).map((r) => ({
+  return rows.map((r) => ({
     id: r.id,
     weekday: r.weekday,
-    starts_at: String(r.starts_at).slice(0, 5),
-    ends_at: String(r.ends_at).slice(0, 5),
+    starts_at: r.starts_at.slice(0, 5),
+    ends_at: r.ends_at.slice(0, 5),
     label: r.label,
   }))
 }
@@ -248,34 +310,35 @@ export async function getTimeOff(
   employeeId: number,
   opts?: { includePast?: boolean },
 ): Promise<TimeOffEntry[]> {
-  const supabase = createAdminClient()
+  const where = opts?.includePast
+    ? eq(employee_time_off.employee_id, employeeId)
+    : and(
+        eq(employee_time_off.employee_id, employeeId),
+        gte(employee_time_off.ends_at, new Date()),
+      )
 
-  // `lower(during)` no es filtrable directamente desde PostgREST sin RPC,
-  // así que traemos todo y filtramos en TS. Volumen esperado bajo (decenas).
-  const { data, error } = await supabase
-    .from('employee_time_off')
-    .select('id, during, reason, note')
-    .eq('employee_id', employeeId)
-    .order('id', { ascending: false })
-
-  if (error) throw error
-
-  const now = Date.now()
-  const rows: TimeOffEntry[] = []
-  for (const r of data ?? []) {
-    const range = parseTstzRange(String(r.during))
-    if (!range) continue
-    if (!opts?.includePast && new Date(range.ends_at).getTime() < now) continue
-    rows.push({
-      id: r.id,
-      starts_at: range.starts_at,
-      ends_at: range.ends_at,
-      reason: r.reason as TimeOffReason,
-      note: r.note,
+  const rows = db
+    .select({
+      id: employee_time_off.id,
+      starts_at: employee_time_off.starts_at,
+      ends_at: employee_time_off.ends_at,
+      reason: employee_time_off.reason,
+      note: employee_time_off.note,
     })
-  }
-  rows.sort((a, b) => a.starts_at.localeCompare(b.starts_at))
-  return rows
+    .from(employee_time_off)
+    .where(where)
+    .orderBy(desc(employee_time_off.id))
+    .all()
+
+  const out: TimeOffEntry[] = rows.map((r) => ({
+    id: r.id,
+    starts_at: r.starts_at.toISOString(),
+    ends_at: r.ends_at.toISOString(),
+    reason: r.reason as TimeOffReason,
+    note: r.note,
+  }))
+  out.sort((a, b) => a.starts_at.localeCompare(b.starts_at))
+  return out
 }
 
 // ─── Servicios disponibles del salón (para el multiselect) ─────────────────
@@ -283,14 +346,14 @@ export async function getTimeOff(
 export async function listServicesForSalon(
   salonId: number,
 ): Promise<ServiceOption[]> {
-  const supabase = createAdminClient()
-  const { data, error } = await supabase
-    .from('services')
-    .select('id, name, is_active')
-    .eq('salon_id', salonId)
-    .order('display_order', { ascending: true })
-    .order('name', { ascending: true })
-
-  if (error) throw error
-  return data ?? []
+  return db
+    .select({
+      id: services.id,
+      name: services.name,
+      is_active: services.is_active,
+    })
+    .from(services)
+    .where(eq(services.salon_id, salonId))
+    .orderBy(asc(services.display_order), asc(services.name))
+    .all()
 }

@@ -1,5 +1,9 @@
 import { cache } from 'react'
-import { createAdminClient } from '@/lib/supabase/admin'
+import { and, asc, desc, eq, gte } from 'drizzle-orm'
+
+import { db } from '@/lib/db'
+import { salon_closures, salon_working_hours, salons } from '@/lib/db/schema'
+import { getPublicUrl } from '@/lib/storage'
 
 export type SalonSettings = {
   id: number
@@ -32,109 +36,107 @@ export type SalonClosure = {
   label: string
 }
 
+const SALON_SETTINGS_COLUMNS = {
+  id: salons.id,
+  slug: salons.slug,
+  name: salons.name,
+  timezone: salons.timezone,
+  locale: salons.locale,
+  address: salons.address,
+  phone: salons.phone,
+  contact_email: salons.contact_email,
+  logo_path: salons.logo_path,
+  slot_granularity_minutes: salons.slot_granularity_minutes,
+  booking_min_hours_ahead: salons.booking_min_hours_ahead,
+  booking_max_days_ahead: salons.booking_max_days_ahead,
+  cancellation_min_hours: salons.cancellation_min_hours,
+  cancellation_policy_text: salons.cancellation_policy_text,
+  terms_text: salons.terms_text,
+} as const
+
 // Resolución del salón por slug para el flujo público (URL /[salonSlug]/book/...).
 // Envuelto con React `cache()` para que múltiples páginas/components de la misma
 // request reusen el resultado sin refetch.
 export const getSalonBySlug = cache(
   async (slug: string): Promise<SalonSettings | null> => {
-    const supabase = createAdminClient()
-    const { data, error } = await supabase
-      .from('salons')
-      .select(
-        'id, slug, name, timezone, locale, address, phone, contact_email, logo_path, slot_granularity_minutes, booking_min_hours_ahead, booking_max_days_ahead, cancellation_min_hours, cancellation_policy_text, terms_text',
-      )
-      .eq('slug', slug)
-      .maybeSingle()
-
-    if (error) throw error
-    return (data ?? null) as SalonSettings | null
+    const row = db
+      .select(SALON_SETTINGS_COLUMNS)
+      .from(salons)
+      .where(eq(salons.slug, slug))
+      .get()
+    return row ?? null
   },
 )
 
 export async function getSalonSettings(
   salonId: number,
 ): Promise<SalonSettings | null> {
-  const supabase = createAdminClient()
-  const { data, error } = await supabase
-    .from('salons')
-    .select(
-      'id, slug, name, timezone, locale, address, phone, contact_email, logo_path, slot_granularity_minutes, booking_min_hours_ahead, booking_max_days_ahead, cancellation_min_hours, cancellation_policy_text, terms_text',
-    )
-    .eq('id', salonId)
-    .maybeSingle()
-
-  if (error) throw error
-  return (data ?? null) as SalonSettings | null
+  const row = db
+    .select(SALON_SETTINGS_COLUMNS)
+    .from(salons)
+    .where(eq(salons.id, salonId))
+    .get()
+  return row ?? null
 }
 
 export async function getSalonWorkingHours(
   salonId: number,
 ): Promise<SalonWorkingDay[]> {
-  const supabase = createAdminClient()
-  const { data, error } = await supabase
-    .from('salon_working_hours')
-    .select('weekday, opens_at, closes_at')
-    .eq('salon_id', salonId)
-    .order('weekday', { ascending: true })
+  const rows = db
+    .select({
+      weekday: salon_working_hours.weekday,
+      opens_at: salon_working_hours.opens_at,
+      closes_at: salon_working_hours.closes_at,
+    })
+    .from(salon_working_hours)
+    .where(eq(salon_working_hours.salon_id, salonId))
+    .orderBy(asc(salon_working_hours.weekday))
+    .all()
 
-  if (error) throw error
-  return (data ?? []).map((r) => ({
+  return rows.map((r) => ({
     weekday: r.weekday,
-    // Postgres devuelve `time` como 'HH:MM:SS'. Recortamos a HH:MM.
-    opens_at: r.opens_at ? String(r.opens_at).slice(0, 5) : null,
-    closes_at: r.closes_at ? String(r.closes_at).slice(0, 5) : null,
+    // En SQLite guardamos 'HH:MM' directamente; .slice defensivo por si alguna
+    // fila histórica trajera segundos.
+    opens_at: r.opens_at ? r.opens_at.slice(0, 5) : null,
+    closes_at: r.closes_at ? r.closes_at.slice(0, 5) : null,
   }))
-}
-
-// Cierres del salón (futuros + en curso). `salon_closures.during` es tstzrange.
-// PostgREST devuelve algo como '["2026-03-30T00:00:00+02:00","2026-04-06T00:00:00+02:00")'.
-function parseTstzRange(
-  value: string,
-): { starts_at: string; ends_at: string } | null {
-  const m = value.match(/^[[(]\s*"?([^",]+)"?\s*,\s*"?([^",)]+)"?\s*[\])]$/)
-  if (!m) return null
-  const [, lower, upper] = m
-  return {
-    starts_at: new Date(lower).toISOString(),
-    ends_at: new Date(upper).toISOString(),
-  }
 }
 
 export async function getSalonClosures(
   salonId: number,
   opts?: { includePast?: boolean },
 ): Promise<SalonClosure[]> {
-  const supabase = createAdminClient()
-  const { data, error } = await supabase
-    .from('salon_closures')
-    .select('id, during, label')
-    .eq('salon_id', salonId)
-    .order('id', { ascending: false })
+  const where = opts?.includePast
+    ? eq(salon_closures.salon_id, salonId)
+    : and(
+        eq(salon_closures.salon_id, salonId),
+        gte(salon_closures.ends_at, new Date()),
+      )
 
-  if (error) throw error
-
-  const now = Date.now()
-  const rows: SalonClosure[] = []
-  for (const r of data ?? []) {
-    const range = parseTstzRange(String(r.during))
-    if (!range) continue
-    if (!opts?.includePast && new Date(range.ends_at).getTime() < now) continue
-    rows.push({
-      id: r.id,
-      starts_at: range.starts_at,
-      ends_at: range.ends_at,
-      label: String(r.label),
+  const rows = db
+    .select({
+      id: salon_closures.id,
+      starts_at: salon_closures.starts_at,
+      ends_at: salon_closures.ends_at,
+      label: salon_closures.label,
     })
-  }
-  rows.sort((a, b) => a.starts_at.localeCompare(b.starts_at))
-  return rows
+    .from(salon_closures)
+    .where(where)
+    .orderBy(desc(salon_closures.id))
+    .all()
+
+  const out = rows.map((r) => ({
+    id: r.id,
+    starts_at: r.starts_at.toISOString(),
+    ends_at: r.ends_at.toISOString(),
+    label: r.label,
+  }))
+  out.sort((a, b) => a.starts_at.localeCompare(b.starts_at))
+  return out
 }
 
-// URL pública del logo a partir del `logo_path` guardado en `salons.logo_path`.
-// Devuelve null si no hay logo.
+// URL pública absoluta del logo. Devuelve null si no hay logo o si el archivo
+// referenciado por logo_path no existe en disco (estado inconsistente).
 export function getLogoPublicUrl(logoPath: string | null): string | null {
-  if (!logoPath) return null
-  const supabase = createAdminClient()
-  const { data } = supabase.storage.from('salon-assets').getPublicUrl(logoPath)
-  return data.publicUrl
+  return getPublicUrl(logoPath)
 }

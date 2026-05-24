@@ -1,4 +1,8 @@
-import type { SupabaseClient } from '@supabase/supabase-js'
+import { and, eq, ne } from 'drizzle-orm'
+import { db } from '@/lib/db'
+import { employees } from '@/lib/db/schema'
+
+type TxLike = Pick<typeof db, 'select'>
 
 export function slugify(input: string): string {
   return (
@@ -12,30 +16,37 @@ export function slugify(input: string): string {
   )
 }
 
-export async function resolveUniqueEmployeeSlug(
-  supabase: SupabaseClient,
+// Devuelve un slug único para el empleado dentro del salón. Si `excludeId` se
+// pasa, ignora ese empleado (caso "renombrar y conservar slug propio").
+// `txDb` permite reutilizar la transacción de Drizzle si la llamada está
+// dentro de una. La UNIQUE de `employees_salon_slug_unique` aborta el INSERT
+// si entre comprobación y persistencia se colara otro slug igual.
+export function resolveUniqueEmployeeSlug(
   salonId: number,
   desired: string,
   excludeId?: number,
-): Promise<string> {
+  txDb: TxLike = db,
+): string {
   const base = slugify(desired)
   let candidate = base
   let n = 1
 
   while (true) {
-    let query = supabase
-      .from('employees')
-      .select('id', { head: true, count: 'exact' })
-      .eq('salon_id', salonId)
-      .eq('slug', candidate)
-
-    if (excludeId !== undefined) {
-      query = query.neq('id', excludeId)
-    }
-
-    const { count, error } = await query
-    if (error) throw error
-    if (!count) return candidate
+    const where =
+      excludeId === undefined
+        ? and(eq(employees.salon_id, salonId), eq(employees.slug, candidate))
+        : and(
+            eq(employees.salon_id, salonId),
+            eq(employees.slug, candidate),
+            ne(employees.id, excludeId),
+          )
+    const hit = txDb
+      .select({ id: employees.id })
+      .from(employees)
+      .where(where)
+      .limit(1)
+      .get()
+    if (!hit) return candidate
 
     n += 1
     candidate = `${base}-${n}`

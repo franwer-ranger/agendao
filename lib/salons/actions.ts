@@ -1,8 +1,10 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { and, eq, gt, lt } from 'drizzle-orm'
 
-import { createAdminClient } from '@/lib/supabase/admin'
+import { db } from '@/lib/db'
+import { salon_closures, salon_working_hours, salons } from '@/lib/db/schema'
 import { getCurrentSalon } from '@/lib/salon'
 import {
   parseBookingsFormData,
@@ -39,18 +41,16 @@ export async function updateIdentityAction(
   }
 
   const salon = await getCurrentSalon()
-  const supabase = createAdminClient()
 
   // Estado actual para saber el logo_path previo (lo borraremos si procede).
-  const { data: current, error: fetchErr } = await supabase
-    .from('salons')
-    .select('logo_path')
-    .eq('id', salon.id)
-    .maybeSingle()
-  if (fetchErr) return { ok: false, message: fetchErr.message }
-  const previousLogoPath = (current?.logo_path as string | null) ?? null
+  const current = db
+    .select({ logo_path: salons.logo_path })
+    .from(salons)
+    .where(eq(salons.id, salon.id))
+    .get()
+  const previousLogoPath = current?.logo_path ?? null
 
-  // Logo nuevo (si lo hay).
+  // Logo nuevo (si lo hay). Sigue usando Supabase Storage en M2; se reemplaza en M3.
   let nextLogoPath: string | null = previousLogoPath
   const logoFile = formData.get('logo')
   if (logoFile instanceof File && logoFile.size > 0) {
@@ -67,18 +67,20 @@ export async function updateIdentityAction(
     nextLogoPath = null
   }
 
-  const { error: updErr } = await supabase
-    .from('salons')
-    .update({
-      name: parsed.data.name,
-      address: parsed.data.address,
-      phone: parsed.data.phone,
-      contact_email: parsed.data.contact_email,
-      logo_path: nextLogoPath,
-    })
-    .eq('id', salon.id)
-
-  if (updErr) return { ok: false, message: updErr.message }
+  try {
+    db.update(salons)
+      .set({
+        name: parsed.data.name,
+        address: parsed.data.address,
+        phone: parsed.data.phone,
+        contact_email: parsed.data.contact_email,
+        logo_path: nextLogoPath,
+      })
+      .where(eq(salons.id, salon.id))
+      .run()
+  } catch (e) {
+    return { ok: false, message: (e as Error).message }
+  }
 
   // Limpiar el logo antiguo si lo hemos reemplazado o eliminado.
   if (previousLogoPath && previousLogoPath !== nextLogoPath) {
@@ -109,30 +111,28 @@ export async function replaceWorkingHoursAction(
   }
 
   const salon = await getCurrentSalon()
-  const supabase = createAdminClient()
 
-  // Borrar todas las filas existentes para este salón.
-  const { error: delErr } = await supabase
-    .from('salon_working_hours')
-    .delete()
-    .eq('salon_id', salon.id)
-  if (delErr) return { ok: false, message: delErr.message }
-
-  // Insertar solo días abiertos (no-fila = cerrado, consistente con el trigger).
+  // Solo días abiertos (no-fila = cerrado, consistente con la lógica del motor).
   const rows = parsed.data.days
     .filter((d) => !d.closed && d.opens_at && d.closes_at)
     .map((d) => ({
       salon_id: salon.id,
       weekday: d.weekday,
-      opens_at: d.opens_at,
-      closes_at: d.closes_at,
+      opens_at: d.opens_at as string,
+      closes_at: d.closes_at as string,
     }))
 
-  if (rows.length > 0) {
-    const { error: insErr } = await supabase
-      .from('salon_working_hours')
-      .insert(rows)
-    if (insErr) return { ok: false, message: insErr.message }
+  try {
+    db.transaction((tx) => {
+      tx.delete(salon_working_hours)
+        .where(eq(salon_working_hours.salon_id, salon.id))
+        .run()
+      if (rows.length > 0) {
+        tx.insert(salon_working_hours).values(rows).run()
+      }
+    })
+  } catch (e) {
+    return { ok: false, message: (e as Error).message }
   }
 
   revalidatePath(REVALIDATE_PATH)
@@ -154,26 +154,43 @@ export async function createSalonClosureAction(
   }
 
   const salon = await getCurrentSalon()
-  const supabase = createAdminClient()
 
   // Día completo en TZ Madrid: [starts_on 00:00, ends_on+1 00:00).
   const startUtc = salonDateToUtc(parsed.data.starts_on)
   const endUtc = salonDateToUtc(addDaysIsoLocal(parsed.data.ends_on, 1))
-  const startIso = startUtc.toISOString()
-  const endIso = endUtc.toISOString()
 
-  const { error: insErr } = await supabase.from('salon_closures').insert({
-    salon_id: salon.id,
-    during: `[${startIso},${endIso})`,
-    label: parsed.data.label,
-  })
+  try {
+    db.transaction((tx) => {
+      // Replica del EXCLUDE GIST de Postgres: rechazar si solapa con otro cierre
+      // del mismo salón. Overlap half-open: start < otherEnd AND end > otherStart.
+      const overlap = tx
+        .select({ id: salon_closures.id })
+        .from(salon_closures)
+        .where(
+          and(
+            eq(salon_closures.salon_id, salon.id),
+            lt(salon_closures.starts_at, endUtc),
+            gt(salon_closures.ends_at, startUtc),
+          ),
+        )
+        .limit(1)
+        .get()
 
-  if (insErr) {
-    // El EXCLUDE GIST de la BD impide solapamientos. Mostramos un mensaje legible.
-    const msg = /exclusion|overlap|conflict/i.test(insErr.message)
-      ? 'Se solapa con otro cierre ya configurado.'
-      : insErr.message
-    return { ok: false, message: msg }
+      if (overlap) {
+        throw new Error('Se solapa con otro cierre ya configurado.')
+      }
+
+      tx.insert(salon_closures)
+        .values({
+          salon_id: salon.id,
+          starts_at: startUtc,
+          ends_at: endUtc,
+          label: parsed.data.label,
+        })
+        .run()
+    })
+  } catch (e) {
+    return { ok: false, message: (e as Error).message }
   }
 
   revalidatePath(REVALIDATE_PATH)
@@ -188,15 +205,13 @@ export async function deleteSalonClosureAction(
   if (!Number.isFinite(id) || id <= 0) return
 
   const salon = await getCurrentSalon()
-  const supabase = createAdminClient()
 
-  const { error } = await supabase
-    .from('salon_closures')
-    .delete()
-    .eq('id', id)
-    .eq('salon_id', salon.id)
+  db.delete(salon_closures)
+    .where(
+      and(eq(salon_closures.id, id), eq(salon_closures.salon_id, salon.id)),
+    )
+    .run()
 
-  if (error) throw error
   revalidatePath(REVALIDATE_PATH)
 }
 
@@ -215,18 +230,20 @@ export async function updateBookingsAction(
   }
 
   const salon = await getCurrentSalon()
-  const supabase = createAdminClient()
 
-  const { error } = await supabase
-    .from('salons')
-    .update({
-      slot_granularity_minutes: parsed.data.slot_granularity_minutes,
-      booking_min_hours_ahead: parsed.data.booking_min_hours_ahead,
-      booking_max_days_ahead: parsed.data.booking_max_days_ahead,
-    })
-    .eq('id', salon.id)
+  try {
+    db.update(salons)
+      .set({
+        slot_granularity_minutes: parsed.data.slot_granularity_minutes,
+        booking_min_hours_ahead: parsed.data.booking_min_hours_ahead,
+        booking_max_days_ahead: parsed.data.booking_max_days_ahead,
+      })
+      .where(eq(salons.id, salon.id))
+      .run()
+  } catch (e) {
+    return { ok: false, message: (e as Error).message }
+  }
 
-  if (error) return { ok: false, message: error.message }
   revalidatePath(REVALIDATE_PATH)
   return { ok: true }
 }
@@ -246,17 +263,19 @@ export async function updateCancellationAction(
   }
 
   const salon = await getCurrentSalon()
-  const supabase = createAdminClient()
 
-  const { error } = await supabase
-    .from('salons')
-    .update({
-      cancellation_min_hours: parsed.data.cancellation_min_hours,
-      cancellation_policy_text: parsed.data.cancellation_policy_text,
-    })
-    .eq('id', salon.id)
+  try {
+    db.update(salons)
+      .set({
+        cancellation_min_hours: parsed.data.cancellation_min_hours,
+        cancellation_policy_text: parsed.data.cancellation_policy_text,
+      })
+      .where(eq(salons.id, salon.id))
+      .run()
+  } catch (e) {
+    return { ok: false, message: (e as Error).message }
+  }
 
-  if (error) return { ok: false, message: error.message }
   revalidatePath(REVALIDATE_PATH)
   return { ok: true }
 }
@@ -276,14 +295,16 @@ export async function updateLegalAction(
   }
 
   const salon = await getCurrentSalon()
-  const supabase = createAdminClient()
 
-  const { error } = await supabase
-    .from('salons')
-    .update({ terms_text: parsed.data.terms_text })
-    .eq('id', salon.id)
+  try {
+    db.update(salons)
+      .set({ terms_text: parsed.data.terms_text })
+      .where(eq(salons.id, salon.id))
+      .run()
+  } catch (e) {
+    return { ok: false, message: (e as Error).message }
+  }
 
-  if (error) return { ok: false, message: error.message }
   revalidatePath(REVALIDATE_PATH)
   return { ok: true }
 }

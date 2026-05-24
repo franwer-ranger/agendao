@@ -1,0 +1,44 @@
+# VCS
+.git
+.gitignore
+.gitattributes
+
+# Build / cache
+.next
+node_modules
+coverage
+*.tsbuildinfo
+
+# Local DB (persiste en volumen, no debe entrar en la imagen)
+data/
+*.db
+*.db-shm
+*.db-wal
+
+# Env secrets (excepto la plantilla)
+.env
+.env.*
+!.env.example
+
+# IDE / OS
+.vscode
+.idea
+.DS_Store
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Docs y agentes (no aportan a runtime)
+README.md
+PLAN.md
+PLAN_MIGRACION_VPS.md
+AGENTS.md
+CLAUDE.md
+.claude/
+.agents/
+
+# El propio Dockerfile
+Dockerfile
+.dockerignore

@@ -414,14 +414,10 @@ export const booking_items = sqliteTable(
     index('booking_items_employee_id_idx').on(t.employee_id),
     index('booking_items_employee_starts_active_idx')
       .on(t.employee_id, t.starts_at)
-      .where(
-        sql`${t.booking_status} in ('pending','confirmed','in_progress')`,
-      ),
+      .where(sql`${t.booking_status} in ('pending','confirmed','in_progress')`),
     index('booking_items_service_starts_active_idx')
       .on(t.service_id, t.starts_at)
-      .where(
-        sql`${t.booking_status} in ('pending','confirmed','in_progress')`,
-      ),
+      .where(sql`${t.booking_status} in ('pending','confirmed','in_progress')`),
   ],
 )
 
@@ -500,21 +496,21 @@ export const booking_notifications = sqliteTable(
   ],
 )
 
-export type Salon = typeof salons.$inferSelect;
-export type AppUser = typeof app_users.$inferSelect;
-export type Employee = typeof employees.$inferSelect;
-export type Service = typeof services.$inferSelect;
-export type EmployeeService = typeof employee_services.$inferSelect;
-export type Client = typeof clients.$inferSelect;
+export type Salon = typeof salons.$inferSelect
+export type AppUser = typeof app_users.$inferSelect
+export type Employee = typeof employees.$inferSelect
+export type Service = typeof services.$inferSelect
+export type EmployeeService = typeof employee_services.$inferSelect
+export type Client = typeof clients.$inferSelect
 export type EmployeeWeeklySchedule =
-  typeof employee_weekly_schedule.$inferSelect;
+  typeof employee_weekly_schedule.$inferSelect
 export type EmployeeRecurringBreak =
-  typeof employee_recurring_breaks.$inferSelect;
-export type EmployeeTimeOff = typeof employee_time_off.$inferSelect;
-export type SalonClosure = typeof salon_closures.$inferSelect;
-export type SalonWorkingHours = typeof salon_working_hours.$inferSelect;
-export type Booking = typeof bookings.$inferSelect;
-export type BookingItem = typeof booking_items.$inferSelect;
-export type BookingStatusEvent = typeof booking_status_events.$inferSelect;
-export type BookingToken = typeof booking_tokens.$inferSelect;
-export type BookingNotification = typeof booking_notifications.$inferSelect;
+  typeof employee_recurring_breaks.$inferSelect
+export type EmployeeTimeOff = typeof employee_time_off.$inferSelect
+export type SalonClosure = typeof salon_closures.$inferSelect
+export type SalonWorkingHours = typeof salon_working_hours.$inferSelect
+export type Booking = typeof bookings.$inferSelect
+export type BookingItem = typeof booking_items.$inferSelect
+export type BookingStatusEvent = typeof booking_status_events.$inferSelect
+export type BookingToken = typeof booking_tokens.$inferSelect
+export type BookingNotification = typeof booking_notifications.$inferSelect

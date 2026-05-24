@@ -1,9 +1,29 @@
 'use server'
 
-import type { SupabaseClient } from '@supabase/supabase-js'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
+import {
+  and,
+  asc,
+  eq,
+  gt,
+  inArray,
+  isNull,
+  lt,
+} from 'drizzle-orm'
 
+import { db } from '@/lib/db'
+import {
+  booking_items,
+  bookings,
+  clients,
+  employee_recurring_breaks,
+  employee_services,
+  employee_time_off,
+  employee_weekly_schedule,
+  employees,
+  services,
+} from '@/lib/db/schema'
 import {
   parseEmployeeFormData,
   parseRecurringBreaksFormData,
@@ -12,7 +32,6 @@ import {
 } from '@/lib/employees/schema'
 import { resolveUniqueEmployeeSlug } from '@/lib/employees/slug'
 import { getCurrentSalon } from '@/lib/salon'
-import { createAdminClient } from '@/lib/supabase/admin'
 import { addDaysIsoLocal, salonDateToUtc } from '@/lib/time'
 
 export type ActionState = {
@@ -33,71 +52,73 @@ export type TimeOffActionState = ActionState & {
   conflicts?: ConflictingBooking[]
 }
 
+type TxDb = Parameters<Parameters<typeof db.transaction>[0]>[0]
+type TxLike = Pick<typeof db, 'select'>
+
 // ─── Helpers internos ──────────────────────────────────────────────────────
 
-async function assertEmployeeBelongsToSalon(
-  supabase: SupabaseClient,
+function assertEmployeeBelongsToSalon(
   employeeId: number,
   salonId: number,
-): Promise<boolean> {
-  const { data, error } = await supabase
-    .from('employees')
-    .select('id')
-    .eq('id', employeeId)
-    .eq('salon_id', salonId)
-    .maybeSingle()
-  if (error) throw error
-  return Boolean(data)
+  txDb: TxLike = db,
+): boolean {
+  const hit = txDb
+    .select({ id: employees.id })
+    .from(employees)
+    .where(and(eq(employees.id, employeeId), eq(employees.salon_id, salonId)))
+    .limit(1)
+    .get()
+  return Boolean(hit)
 }
 
 // Sincroniza la lista de servicios que el empleado puede realizar.
 // Mismo patrón que syncEmployeeAssignments en lib/services/actions.ts, invertido.
-async function syncServiceAssignments(
+function syncServiceAssignments(
   employeeId: number,
   salonId: number,
   desiredServiceIds: number[],
-): Promise<void> {
-  const supabase = createAdminClient()
-
-  if (desiredServiceIds.length > 0) {
-    const { data: validRows, error: vErr } = await supabase
-      .from('services')
-      .select('id')
-      .eq('salon_id', salonId)
-      .in('id', desiredServiceIds)
-    if (vErr) throw vErr
-    const validSet = new Set((validRows ?? []).map((r) => r.id))
-    desiredServiceIds = desiredServiceIds.filter((id) => validSet.has(id))
+  tx: TxDb,
+): void {
+  let desired = desiredServiceIds
+  if (desired.length > 0) {
+    const validRows = tx
+      .select({ id: services.id })
+      .from(services)
+      .where(and(eq(services.salon_id, salonId), inArray(services.id, desired)))
+      .all()
+    const validSet = new Set(validRows.map((r) => r.id))
+    desired = desired.filter((id) => validSet.has(id))
   }
 
-  const { data: existing, error: eErr } = await supabase
-    .from('employee_services')
-    .select('service_id')
-    .eq('employee_id', employeeId)
-  if (eErr) throw eErr
+  const existing = tx
+    .select({ service_id: employee_services.service_id })
+    .from(employee_services)
+    .where(eq(employee_services.employee_id, employeeId))
+    .all()
 
-  const existingIds = new Set((existing ?? []).map((r) => r.service_id))
-  const desiredSet = new Set(desiredServiceIds)
+  const existingIds = new Set(existing.map((r) => r.service_id))
+  const desiredSet = new Set(desired)
 
   const toAdd = [...desiredSet].filter((id) => !existingIds.has(id))
   const toRemove = [...existingIds].filter((id) => !desiredSet.has(id))
 
   if (toRemove.length > 0) {
-    const { error } = await supabase
-      .from('employee_services')
-      .delete()
-      .eq('employee_id', employeeId)
-      .in('service_id', toRemove)
-    if (error) throw error
+    tx.delete(employee_services)
+      .where(
+        and(
+          eq(employee_services.employee_id, employeeId),
+          inArray(employee_services.service_id, toRemove),
+        ),
+      )
+      .run()
   }
 
   if (toAdd.length > 0) {
-    const { error } = await supabase
-      .from('employee_services')
-      .insert(
+    tx.insert(employee_services)
+      .values(
         toAdd.map((service_id) => ({ employee_id: employeeId, service_id })),
       )
-    if (error) throw error
+      .run()
   }
 }
 
@@ -116,38 +137,46 @@ export async function createEmployeeAction(
   }
 
   const salon = await getCurrentSalon()
-  const supabase = createAdminClient()
-  const slug = await resolveUniqueEmployeeSlug(
-    supabase,
-    salon.id,
-    parsed.data.display_name,
-  )
 
-  const { data: created, error } = await supabase
-    .from('employees')
-    .insert({
-      salon_id: salon.id,
-      display_name: parsed.data.display_name,
-      slug,
-      bio: parsed.data.bio,
-      color_hex: parsed.data.color_hex,
-      is_active: parsed.data.is_active,
-      display_order: parsed.data.display_order,
+  let createdId: number
+  try {
+    createdId = db.transaction((tx) => {
+      const slug = resolveUniqueEmployeeSlug(
+        salon.id,
+        parsed.data.display_name,
+        undefined,
+        tx,
+      )
+      const inserted = tx
+        .insert(employees)
+        .values({
+          salon_id: salon.id,
+          display_name: parsed.data.display_name,
+          slug,
+          bio: parsed.data.bio,
+          color_hex: parsed.data.color_hex,
+          is_active: parsed.data.is_active,
+          display_order: parsed.data.display_order,
+        })
+        .returning({ id: employees.id })
+        .all()
+      const created = inserted[0]
+      if (!created) throw new Error('No se pudo crear el empleado')
+
+      syncServiceAssignments(
+        created.id,
+        salon.id,
+        parsed.data.service_ids,
+        tx,
+      )
+      return created.id
     })
-    .select('id')
-    .single()
-
-  if (error || !created) {
-    return {
-      ok: false,
-      message: error?.message ?? 'No se pudo crear el empleado',
-    }
+  } catch (e) {
+    return { ok: false, message: (e as Error).message }
   }
 
-  await syncServiceAssignments(created.id, salon.id, parsed.data.service_ids)
-
   revalidatePath('/admin/employees')
-  redirect(`/admin/employees/${created.id}/edit`)
+  redirect(`/admin/employees/${createdId}/edit`)
 }
 
 export async function updateEmployeeAction(
@@ -164,45 +193,56 @@ export async function updateEmployeeAction(
   }
 
   const salon = await getCurrentSalon()
-  const supabase = createAdminClient()
 
-  const { data: current, error: fetchErr } = await supabase
-    .from('employees')
-    .select('id, display_name, slug')
-    .eq('id', employeeId)
-    .eq('salon_id', salon.id)
-    .maybeSingle()
-  if (fetchErr) throw fetchErr
-  if (!current) return { ok: false, message: 'Empleado no encontrado' }
-
-  const slug =
-    current.display_name === parsed.data.display_name
-      ? current.slug
-      : await resolveUniqueEmployeeSlug(
-          supabase,
-          salon.id,
-          parsed.data.display_name,
-          employeeId,
+  try {
+    db.transaction((tx) => {
+      const current = tx
+        .select({
+          id: employees.id,
+          display_name: employees.display_name,
+          slug: employees.slug,
+        })
+        .from(employees)
+        .where(
+          and(eq(employees.id, employeeId), eq(employees.salon_id, salon.id)),
         )
+        .get()
+      if (!current) throw new Error('Empleado no encontrado')
 
-  const { error: updErr } = await supabase
-    .from('employees')
-    .update({
-      display_name: parsed.data.display_name,
-      slug,
-      bio: parsed.data.bio,
-      color_hex: parsed.data.color_hex,
-      is_active: parsed.data.is_active,
-      display_order: parsed.data.display_order,
+      const slug =
+        current.display_name === parsed.data.display_name
+          ? current.slug
+          : resolveUniqueEmployeeSlug(
+              salon.id,
+              parsed.data.display_name,
+              employeeId,
+              tx,
+            )
+
+      tx.update(employees)
+        .set({
+          display_name: parsed.data.display_name,
+          slug,
+          bio: parsed.data.bio,
+          color_hex: parsed.data.color_hex,
+          is_active: parsed.data.is_active,
+          display_order: parsed.data.display_order,
+        })
+        .where(
+          and(eq(employees.id, employeeId), eq(employees.salon_id, salon.id)),
+        )
+        .run()
+
+      syncServiceAssignments(
+        employeeId,
+        salon.id,
+        parsed.data.service_ids,
+        tx,
+      )
     })
-    .eq('id', employeeId)
-    .eq('salon_id', salon.id)
-
-  if (updErr) {
-    return { ok: false, message: updErr.message }
+  } catch (e) {
+    return { ok: false, message: (e as Error).message }
   }
-
-  await syncServiceAssignments(employeeId, salon.id, parsed.data.service_ids)
 
   revalidatePath('/admin/employees')
   revalidatePath(`/admin/employees/${employeeId}/edit`)
@@ -219,15 +259,12 @@ export async function setEmployeeActiveAction(
   if (!Number.isFinite(id) || id <= 0) return
 
   const salon = await getCurrentSalon()
-  const supabase = createAdminClient()
 
-  const { error } = await supabase
-    .from('employees')
-    .update({ is_active: active })
-    .eq('id', id)
-    .eq('salon_id', salon.id)
+  db.update(employees)
+    .set({ is_active: active })
+    .where(and(eq(employees.id, id), eq(employees.salon_id, salon.id)))
+    .run()
 
-  if (error) throw error
   revalidatePath('/admin/employees')
   revalidatePath(`/admin/employees/${id}/edit`)
 }
@@ -248,31 +285,39 @@ export async function updateEmployeeWeeklyScheduleAction(
   }
 
   const salon = await getCurrentSalon()
-  const supabase = createAdminClient()
 
-  const ok = await assertEmployeeBelongsToSalon(supabase, employeeId, salon.id)
-  if (!ok) return { ok: false, message: 'Empleado no encontrado' }
+  try {
+    db.transaction((tx) => {
+      if (!assertEmployeeBelongsToSalon(employeeId, salon.id, tx)) {
+        throw new Error('Empleado no encontrado')
+      }
 
-  // Reemplazo total: borramos las filas "vivas" (effective_until is null) y
-  // metemos las nuevas. No tocamos versiones históricas.
-  const { error: delErr } = await supabase
-    .from('employee_weekly_schedule')
-    .delete()
-    .eq('employee_id', employeeId)
-    .is('effective_until', null)
-  if (delErr) return { ok: false, message: delErr.message }
+      // Reemplazo total: borramos las filas "vivas" (effective_until is null)
+      // y metemos las nuevas. No tocamos versiones históricas.
+      tx.delete(employee_weekly_schedule)
+        .where(
+          and(
+            eq(employee_weekly_schedule.employee_id, employeeId),
+            isNull(employee_weekly_schedule.effective_until),
+          ),
+        )
+        .run()
 
-  if (parsed.data.shifts.length > 0) {
-    const rows = parsed.data.shifts.map((s) => ({
-      employee_id: employeeId,
-      weekday: s.weekday,
-      starts_at: s.starts_at,
-      ends_at: s.ends_at,
-    }))
-    const { error: insErr } = await supabase
-      .from('employee_weekly_schedule')
-      .insert(rows)
-    if (insErr) return { ok: false, message: insErr.message }
+      if (parsed.data.shifts.length > 0) {
+        tx.insert(employee_weekly_schedule)
+          .values(
+            parsed.data.shifts.map((s) => ({
+              employee_id: employeeId,
+              weekday: s.weekday,
+              starts_at: s.starts_at,
+              ends_at: s.ends_at,
+            })),
+          )
+          .run()
+      }
+    })
+  } catch (e) {
+    return { ok: false, message: (e as Error).message }
   }
 
   revalidatePath(`/admin/employees/${employeeId}/edit`)
@@ -295,30 +340,38 @@ export async function updateEmployeeRecurringBreaksAction(
   }
 
   const salon = await getCurrentSalon()
-  const supabase = createAdminClient()
 
-  const ok = await assertEmployeeBelongsToSalon(supabase, employeeId, salon.id)
-  if (!ok) return { ok: false, message: 'Empleado no encontrado' }
+  try {
+    db.transaction((tx) => {
+      if (!assertEmployeeBelongsToSalon(employeeId, salon.id, tx)) {
+        throw new Error('Empleado no encontrado')
+      }
 
-  const { error: delErr } = await supabase
-    .from('employee_recurring_breaks')
-    .delete()
-    .eq('employee_id', employeeId)
-    .is('effective_until', null)
-  if (delErr) return { ok: false, message: delErr.message }
+      tx.delete(employee_recurring_breaks)
+        .where(
+          and(
+            eq(employee_recurring_breaks.employee_id, employeeId),
+            isNull(employee_recurring_breaks.effective_until),
+          ),
+        )
+        .run()
 
-  if (parsed.data.breaks.length > 0) {
-    const rows = parsed.data.breaks.map((b) => ({
-      employee_id: employeeId,
-      weekday: b.weekday,
-      starts_at: b.starts_at,
-      ends_at: b.ends_at,
-      label: b.label,
-    }))
-    const { error: insErr } = await supabase
-      .from('employee_recurring_breaks')
-      .insert(rows)
-    if (insErr) return { ok: false, message: insErr.message }
+      if (parsed.data.breaks.length > 0) {
+        tx.insert(employee_recurring_breaks)
+          .values(
+            parsed.data.breaks.map((b) => ({
+              employee_id: employeeId,
+              weekday: b.weekday,
+              starts_at: b.starts_at,
+              ends_at: b.ends_at,
+              label: b.label,
+            })),
+          )
+          .run()
+      }
+    })
+  } catch (e) {
+    return { ok: false, message: (e as Error).message }
   }
 
   revalidatePath(`/admin/employees/${employeeId}/edit`)
@@ -341,42 +394,61 @@ export async function createEmployeeTimeOffAction(
   }
 
   const salon = await getCurrentSalon()
-  const supabase = createAdminClient()
 
-  const ok = await assertEmployeeBelongsToSalon(supabase, employeeId, salon.id)
-  if (!ok) return { ok: false, message: 'Empleado no encontrado' }
+  if (!assertEmployeeBelongsToSalon(employeeId, salon.id)) {
+    return { ok: false, message: 'Empleado no encontrado' }
+  }
 
   // Día completo: [starts_on 00:00 Madrid, ends_on+1 00:00 Madrid)
   const startUtc = salonDateToUtc(parsed.data.starts_on)
   const endUtc = salonDateToUtc(addDaysIsoLocal(parsed.data.ends_on, 1))
-  const startIso = startUtc.toISOString()
-  const endIso = endUtc.toISOString()
 
   const confirm = formData.get('confirm') === 'true'
 
   if (!confirm) {
-    const conflicts = await findBookingConflicts(
-      supabase,
+    const conflicts = findBookingConflicts(
       employeeId,
       salon.id,
-      startIso,
-      endIso,
+      startUtc,
+      endUtc,
     )
     if (conflicts.length > 0) {
       return { ok: false, conflicts }
     }
   }
 
-  const { error: insErr } = await supabase.from('employee_time_off').insert({
-    employee_id: employeeId,
-    during: `[${startIso},${endIso})`,
-    reason: parsed.data.reason,
-    note: parsed.data.note,
-  })
+  try {
+    db.transaction((tx) => {
+      // Replica del EXCLUDE GIST de Postgres: rechazar si solapa con otro
+      // time-off del mismo empleado. Half-open: start < otherEnd AND end > otherStart.
+      const overlap = tx
+        .select({ id: employee_time_off.id })
+        .from(employee_time_off)
+        .where(
+          and(
+            eq(employee_time_off.employee_id, employeeId),
+            lt(employee_time_off.starts_at, endUtc),
+            gt(employee_time_off.ends_at, startUtc),
+          ),
+        )
+        .limit(1)
+        .get()
+      if (overlap) {
+        throw new Error('Ya existe un bloqueo que solapa con ese rango.')
+      }
 
-  if (insErr) {
-    // El EXCLUDE de la BD impide solapes con otros time-offs del mismo empleado.
-    return { ok: false, message: insErr.message }
+      tx.insert(employee_time_off)
+        .values({
+          employee_id: employeeId,
+          starts_at: startUtc,
+          ends_at: endUtc,
+          reason: parsed.data.reason,
+          note: parsed.data.note,
+        })
+        .run()
+    })
+  } catch (e) {
+    return { ok: false, message: (e as Error).message }
   }
 
   revalidatePath(`/admin/employees/${employeeId}/edit`)
@@ -394,82 +466,63 @@ export async function deleteEmployeeTimeOffAction(
   if (!Number.isFinite(employeeId) || employeeId <= 0) return
 
   const salon = await getCurrentSalon()
-  const supabase = createAdminClient()
 
-  const ok = await assertEmployeeBelongsToSalon(supabase, employeeId, salon.id)
-  if (!ok) return
+  if (!assertEmployeeBelongsToSalon(employeeId, salon.id)) return
 
-  const { error } = await supabase
-    .from('employee_time_off')
-    .delete()
-    .eq('id', id)
-    .eq('employee_id', employeeId)
+  db.delete(employee_time_off)
+    .where(
+      and(
+        eq(employee_time_off.id, id),
+        eq(employee_time_off.employee_id, employeeId),
+      ),
+    )
+    .run()
 
-  if (error) throw error
   revalidatePath(`/admin/employees/${employeeId}/edit`)
 }
 
 // ─── Detección de reservas afectadas por un time-off propuesto ─────────────
 
-async function findBookingConflicts(
-  supabase: SupabaseClient,
+function findBookingConflicts(
   employeeId: number,
   salonId: number,
-  startIso: string,
-  endIso: string,
-): Promise<ConflictingBooking[]> {
-  // Solapan ⇔ item.starts_at < endIso AND item.ends_at > startIso
-  const { data, error } = await supabase
-    .from('booking_items')
-    .select(
-      `
-        booking_id,
-        starts_at,
-        ends_at,
-        services!inner(name),
-        bookings!inner(
-          clients!inner(display_name)
-        )
-      `,
+  start: Date,
+  end: Date,
+): ConflictingBooking[] {
+  // Solapan ⇔ item.starts_at < end AND item.ends_at > start
+  const rows = db
+    .select({
+      booking_id: booking_items.booking_id,
+      starts_at: booking_items.starts_at,
+      ends_at: booking_items.ends_at,
+      service_name: services.name,
+      client_name: clients.display_name,
+    })
+    .from(booking_items)
+    .innerJoin(bookings, eq(booking_items.booking_id, bookings.id))
+    .innerJoin(clients, eq(bookings.client_id, clients.id))
+    .innerJoin(services, eq(booking_items.service_id, services.id))
+    .where(
+      and(
+        eq(booking_items.employee_id, employeeId),
+        eq(booking_items.salon_id, salonId),
+        inArray(booking_items.booking_status, [
+          'pending',
+          'confirmed',
+          'in_progress',
+        ]),
+        lt(booking_items.starts_at, end),
+        gt(booking_items.ends_at, start),
+      ),
     )
-    .eq('employee_id', employeeId)
-    .eq('salon_id', salonId)
-    .in('booking_status', ['pending', 'confirmed', 'in_progress'])
-    .lt('starts_at', endIso)
-    .gt('ends_at', startIso)
-    .order('starts_at', { ascending: true })
+    .orderBy(asc(booking_items.starts_at))
+    .all()
 
-  if (error) throw error
-
-  type Row = {
-    booking_id: number
-    starts_at: string
-    ends_at: string
-    services: { name: string } | { name: string }[] | null
-    bookings:
-      | {
-          clients: { display_name: string } | { display_name: string }[] | null
-        }
-      | {
-          clients: { display_name: string } | { display_name: string }[] | null
-        }[]
-      | null
-  }
-
-  return ((data ?? []) as Row[]).map((row) => {
-    const service = Array.isArray(row.services) ? row.services[0] : row.services
-    const booking = Array.isArray(row.bookings) ? row.bookings[0] : row.bookings
-    const client = booking
-      ? Array.isArray(booking.clients)
-        ? booking.clients[0]
-        : booking.clients
-      : null
-    return {
-      booking_id: row.booking_id,
-      starts_at: row.starts_at,
-      ends_at: row.ends_at,
-      client_name: client?.display_name ?? '—',
-      service_name: service?.name ?? '—',
-    }
-  })
+  return rows.map((r) => ({
+    booking_id: r.booking_id,
+    starts_at: r.starts_at.toISOString(),
+    ends_at: r.ends_at.toISOString(),
+    client_name: r.client_name,
+    service_name: r.service_name,
+  }))
 }

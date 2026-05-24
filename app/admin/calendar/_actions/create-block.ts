@@ -1,9 +1,11 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { and, eq, gt, lt } from 'drizzle-orm'
 import { z } from 'zod'
 
-import { createAdminClient } from '@/lib/supabase/admin'
+import { db } from '@/lib/db'
+import { employee_time_off, employees } from '@/lib/db/schema'
 import { getCurrentSalon } from '@/lib/salon'
 import { salonDateToUtc } from '@/lib/time'
 
@@ -53,17 +55,6 @@ export async function createBlockAction(
   }
 
   const salon = await getCurrentSalon()
-  const supabase = createAdminClient()
-
-  // Empleado pertenece al salón.
-  const { data: emp, error: empErr } = await supabase
-    .from('employees')
-    .select('id')
-    .eq('id', parsed.data.employee_id)
-    .eq('salon_id', salon.id)
-    .maybeSingle()
-  if (empErr) return { ok: false, message: empErr.message }
-  if (!emp) return { ok: false, message: 'Empleado no encontrado en el salón.' }
 
   // Construir el rango UTC a partir de fecha local + horas locales del salón.
   // `salonDateToUtc` nos da la medianoche del día; sumamos minutos de cada hora.
@@ -75,29 +66,63 @@ export async function createBlockAction(
     dayStartUtc.getTime() + hhmmToMinutes(parsed.data.ends_at) * 60_000,
   )
 
-  const { data, error } = await supabase
-    .from('employee_time_off')
-    .insert({
-      employee_id: parsed.data.employee_id,
-      during: `[${startsAt.toISOString()},${endsAt.toISOString()})`,
-      reason: parsed.data.reason,
-      note: parsed.data.note,
+  try {
+    const id = db.transaction((tx) => {
+      // Pertenencia al salón.
+      const emp = tx
+        .select({ id: employees.id })
+        .from(employees)
+        .where(
+          and(
+            eq(employees.id, parsed.data.employee_id),
+            eq(employees.salon_id, salon.id),
+          ),
+        )
+        .limit(1)
+        .get()
+      if (!emp) {
+        throw new Error('Empleado no encontrado en el salón.')
+      }
+
+      // Replica del EXCLUDE GIST: rechazar si solapa con otro time-off
+      // del mismo empleado. Half-open: start < otherEnd AND end > otherStart.
+      const overlap = tx
+        .select({ id: employee_time_off.id })
+        .from(employee_time_off)
+        .where(
+          and(
+            eq(employee_time_off.employee_id, parsed.data.employee_id),
+            lt(employee_time_off.starts_at, endsAt),
+            gt(employee_time_off.ends_at, startsAt),
+          ),
+        )
+        .limit(1)
+        .get()
+      if (overlap) {
+        throw new Error('Ya existe un bloqueo que solapa con ese rango.')
+      }
+
+      const inserted = tx
+        .insert(employee_time_off)
+        .values({
+          employee_id: parsed.data.employee_id,
+          starts_at: startsAt,
+          ends_at: endsAt,
+          reason: parsed.data.reason,
+          note: parsed.data.note,
+        })
+        .returning({ id: employee_time_off.id })
+        .all()
+      const created = inserted[0]
+      if (!created) throw new Error('No se pudo crear el bloqueo.')
+      return created.id
     })
-    .select('id')
-    .single()
 
-  if (error) {
-    // El EXCLUDE de BD impide solapes con otros time-off del mismo empleado.
-    return {
-      ok: false,
-      message: error.message.includes('exclude')
-        ? 'Ya existe un bloqueo que solapa con ese rango.'
-        : error.message,
-    }
+    revalidatePath('/admin/calendar')
+    return { ok: true, id }
+  } catch (e) {
+    return { ok: false, message: (e as Error).message }
   }
-
-  revalidatePath('/admin/calendar')
-  return { ok: true, id: data.id }
 }
 
 function hhmmToMinutes(hhmm: string): number {

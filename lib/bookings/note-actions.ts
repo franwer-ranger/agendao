@@ -1,9 +1,11 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { and, eq } from 'drizzle-orm'
 
+import { db } from '@/lib/db'
+import { bookings } from '@/lib/db/schema'
 import { getCurrentSalon } from '@/lib/salon'
-import { createAdminClient } from '@/lib/supabase/admin'
 
 export type NoteActionResult = { ok: true } | { ok: false; message: string }
 
@@ -14,7 +16,6 @@ export async function updateBookingInternalNoteAction(input: {
   internalNote: string
 }): Promise<NoteActionResult> {
   const salon = await getCurrentSalon()
-  const supabase = createAdminClient()
 
   const trimmed = input.internalNote.trim()
   if (trimmed.length > MAX_NOTE_LENGTH) {
@@ -24,13 +25,19 @@ export async function updateBookingInternalNoteAction(input: {
     }
   }
 
-  const { error } = await supabase
-    .from('bookings')
-    .update({ internal_note: trimmed === '' ? null : trimmed })
-    .eq('id', input.bookingId)
-    .eq('salon_id', salon.id)
-
-  if (error) return { ok: false, message: error.message }
+  try {
+    db.update(bookings)
+      .set({ internal_note: trimmed === '' ? null : trimmed })
+      .where(
+        and(
+          eq(bookings.id, input.bookingId),
+          eq(bookings.salon_id, salon.id),
+        ),
+      )
+      .run()
+  } catch (e) {
+    return { ok: false, message: (e as Error).message }
+  }
 
   revalidatePath('/admin/calendar')
   revalidatePath('/admin/today')

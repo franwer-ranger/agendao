@@ -1,8 +1,11 @@
 import 'server-only'
+import { and, eq, gte, inArray, lte } from 'drizzle-orm'
+
+import { db } from '@/lib/db'
+import { bookings, clients } from '@/lib/db/schema'
 import { loadBookingEmailContext } from '@/lib/email/load-context'
 import { sendBookingEmail } from '@/lib/email/send'
 import { BookingReminderEmail } from '@/lib/email/templates/booking-reminder'
-import { createAdminClient } from '@/lib/supabase/admin'
 
 export type ReminderRunResult = {
   scanned: number
@@ -21,7 +24,6 @@ export type ReminderRunResult = {
 // el envío reservará el slot y, si está ocupado, no se envía dos veces aunque
 // dos crons coincidan o se ejecuten manualmente seguidos.
 export async function runReminderBatch(): Promise<ReminderRunResult> {
-  const supabase = createAdminClient()
   const result: ReminderRunResult = {
     scanned: 0,
     sent: 0,
@@ -31,30 +33,42 @@ export async function runReminderBatch(): Promise<ReminderRunResult> {
   }
 
   const now = new Date()
-  const windowStart = new Date(
-    now.getTime() + 23 * 60 * 60 * 1000,
-  ).toISOString()
-  const windowEnd = new Date(now.getTime() + 25 * 60 * 60 * 1000).toISOString()
+  const windowStart = new Date(now.getTime() + 23 * 60 * 60 * 1000)
+  const windowEnd = new Date(now.getTime() + 25 * 60 * 60 * 1000)
 
-  const { data: bookings, error } = await supabase
-    .from('bookings')
-    .select('id, salon_id, starts_at, client:clients!inner(email)')
-    .in('status', ['pending', 'confirmed'])
-    .gte('starts_at', windowStart)
-    .lte('starts_at', windowEnd)
-
-  if (error) {
-    result.errors.push(`query failed: ${error.message}`)
+  let scanned: Array<{
+    id: number
+    salon_id: number
+    client_email: string | null
+  }> = []
+  try {
+    scanned = db
+      .select({
+        id: bookings.id,
+        salon_id: bookings.salon_id,
+        client_email: clients.email,
+      })
+      .from(bookings)
+      .innerJoin(clients, eq(clients.id, bookings.client_id))
+      .where(
+        and(
+          inArray(bookings.status, ['pending', 'confirmed']),
+          gte(bookings.starts_at, windowStart),
+          lte(bookings.starts_at, windowEnd),
+        ),
+      )
+      .all()
+  } catch (err) {
+    result.errors.push(
+      `query failed: ${err instanceof Error ? err.message : String(err)}`,
+    )
     return result
   }
 
-  result.scanned = bookings?.length ?? 0
+  result.scanned = scanned.length
 
-  for (const booking of bookings ?? []) {
-    const client = Array.isArray(booking.client)
-      ? booking.client[0]
-      : booking.client
-    if (!client?.email) {
+  for (const booking of scanned) {
+    if (!booking.client_email) {
       result.skipped += 1
       continue
     }
