@@ -58,10 +58,10 @@ for (const entry of journal.entries) {
 
   tx()
   appliedCount++
-  console.log(`Applied migration: ${entry.tag}`)
+  console.warn(`Applied migration: ${entry.tag}`)
 }
 
 sqlite.close()
-console.log(
+console.warn(
   `Migrations done (${appliedCount} new, ${journal.entries.length} total) at ${dbPath}`,
 )

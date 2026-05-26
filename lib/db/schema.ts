@@ -74,14 +74,53 @@ export const app_users = sqliteTable(
       .notNull()
       .references(() => salons.id, { onDelete: 'restrict' }),
     role: text().notNull(),
+    email: citext().notNull(),
+    password_hash: text().notNull(),
     display_name: text().notNull(),
     is_active: integer({ mode: 'boolean' }).notNull().default(true),
+    email_verified_at: integer({ mode: 'timestamp_ms' }),
+    last_login_at: integer({ mode: 'timestamp_ms' }),
     created_at: integer({ mode: 'timestamp_ms' }).notNull().default(NOW_MS),
   },
   (t) => [
     check('app_users_role_check', sql`${t.role} in ('admin','staff')`),
+    uniqueIndex('app_users_email_unique').on(t.email),
     index('app_users_salon_id_idx').on(t.salon_id),
   ],
+)
+
+export const auth_sessions = sqliteTable(
+  'auth_sessions',
+  {
+    id: text().primaryKey(),
+    user_id: text()
+      .notNull()
+      .references(() => app_users.id, { onDelete: 'cascade' }),
+    expires_at: integer({ mode: 'timestamp_ms' }).notNull(),
+    user_agent: text(),
+    ip: text(),
+    created_at: integer({ mode: 'timestamp_ms' }).notNull().default(NOW_MS),
+    last_used_at: integer({ mode: 'timestamp_ms' }).notNull().default(NOW_MS),
+  },
+  (t) => [
+    index('auth_sessions_user_id_idx').on(t.user_id),
+    index('auth_sessions_expires_at_idx').on(t.expires_at),
+  ],
+)
+
+export const auth_password_reset_tokens = sqliteTable(
+  'auth_password_reset_tokens',
+  {
+    id: integer().primaryKey({ autoIncrement: true }),
+    user_id: text()
+      .notNull()
+      .references(() => app_users.id, { onDelete: 'cascade' }),
+    token_hash: text().notNull().unique(),
+    expires_at: integer({ mode: 'timestamp_ms' }).notNull(),
+    used_at: integer({ mode: 'timestamp_ms' }),
+    created_at: integer({ mode: 'timestamp_ms' }).notNull().default(NOW_MS),
+  },
+  (t) => [index('auth_password_reset_user_id_idx').on(t.user_id)],
 )
 
 export const employees = sqliteTable(
@@ -514,3 +553,6 @@ export type BookingItem = typeof booking_items.$inferSelect
 export type BookingStatusEvent = typeof booking_status_events.$inferSelect
 export type BookingToken = typeof booking_tokens.$inferSelect
 export type BookingNotification = typeof booking_notifications.$inferSelect
+export type AuthSession = typeof auth_sessions.$inferSelect
+export type AuthPasswordResetToken =
+  typeof auth_password_reset_tokens.$inferSelect
