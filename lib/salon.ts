@@ -1,8 +1,7 @@
+import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { salons } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
-
-const DEMO_SALON_SLUG = 'estudio-aurora'
 
 export type CurrentSalon = {
   id: number
@@ -13,8 +12,11 @@ export type CurrentSalon = {
   slot_granularity_minutes: number
 }
 
-// Until auth lands (Block 10), the dashboard always operates on the demo salon.
 export async function getCurrentSalon(): Promise<CurrentSalon> {
+  const session = await auth()
+  if (!session?.user?.salonId) {
+    throw new Error('No hay sesión activa')
+  }
   const row = db
     .select({
       id: salons.id,
@@ -25,13 +27,11 @@ export async function getCurrentSalon(): Promise<CurrentSalon> {
       slot_granularity_minutes: salons.slot_granularity_minutes,
     })
     .from(salons)
-    .where(eq(salons.slug, DEMO_SALON_SLUG))
+    .where(eq(salons.id, session.user.salonId))
     .get()
 
   if (!row) {
-    throw new Error(
-      `No se encontró el salón "${DEMO_SALON_SLUG}". ¿Ejecutaste npm run db:migrate && npm run db:seed?`,
-    )
+    throw new Error('Salón no encontrado para la sesión actual')
   }
   return row
 }

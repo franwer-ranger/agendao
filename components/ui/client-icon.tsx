@@ -9,6 +9,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
+  LogOut,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -18,6 +19,7 @@ const iconMap: Record<string, LucideIcon> = {
   store: Store,
   calendar: Calendar,
   clock: Clock,
+  'log-out': LogOut,
   'chevron-left': ChevronLeft,
   'chevron-right': ChevronRight,
 }

@@ -59,6 +59,47 @@ npm run db:migrate
 npm run db:seed
 ```
 
+## Autenticación (Bloque 10)
+
+Auth.js v5 con Credentials (email + password). Sesiones JWT respaldadas por la
+tabla `auth_sessions` para permitir revocación inmediata.
+
+### Crear el primer admin
+
+El registro público está deshabilitado. El primer admin se crea por script:
+
+```bash
+# Si solo hay un salón en la DB
+tsx scripts/create-admin.ts admin@ejemplo.com supersecreta1
+
+# Si hay varios, pasa el slug del salón
+tsx scripts/create-admin.ts admin@ejemplo.com supersecreta1 estudio-aurora
+```
+
+Requisitos: email válido, password ≥ 8 caracteres. Se hashea con argon2id.
+
+En producción (Kamal):
+
+```bash
+kamal app exec --interactive "tsx scripts/create-admin.ts admin@ejemplo.com supersecreta1"
+```
+
+### Roles
+
+- `admin` → acceso completo a `/admin/*`.
+- `staff` → solo `/admin/today` y `/admin/calendar`. El resto redirige a `/admin/today`.
+
+### Revocación de sesión
+
+Borrar la fila correspondiente en `auth_sessions` (vía `db:studio` o SQL)
+invalida la sesión en el siguiente request. El usuario será redirigido a
+`/login`. Pasar por `/login` haciendo sign-out también limpia la fila.
+
+### Recuperación de contraseña
+
+Flujo en `/forgot-password` → `/reset-password/<token>`. Token de un solo uso,
+TTL 60 min. Consumir el token revoca todas las sesiones activas del usuario.
+
 ### Caveats vs Postgres
 
 - No RLS, no PL/pgSQL triggers, no `EXCLUDE` constraints. Hard validity that Postgres enforces (no-overlap of bookings, advisory locks for concurrency, magic-link RPCs) is **not** replicated. The TS layer is the single source of business rules in this local mode.
@@ -78,7 +119,7 @@ Copia la plantilla y rellena los secretos:
 cp .env.example .env.local
 ```
 
-Mínimo necesario: `DATABASE_URL`, `RESEND_API_KEY`, `EMAIL_FROM`, `CRON_SECRET`.
+Mínimo necesario: `DATABASE_URL`, `APP_URL`, `AUTH_SECRET`, `RESEND_API_KEY`, `EMAIL_FROM`, `CRON_SECRET`. En producción detrás de proxy añadir `AUTH_TRUST_HOST=true`.
 
 ### Build (desde Mac ARM hacia VPS x86)
 
