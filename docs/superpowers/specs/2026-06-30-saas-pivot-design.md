@@ -119,10 +119,11 @@ independientes; cada uno tendrá su propio ciclo spec → plan → implementaci�
   volumen de cambios.
 - **Concurrencia de reservas (punto crítico de regresión).** Hoy se apoya en que
   SQLite WAL serializa escrituras dentro de una transacción ("validar
-  disponibilidad + insertar en la misma transacción"). En Postgres hay que
-  rediseñarlo: transacción `SERIALIZABLE` **o** `SELECT … FOR UPDATE` sobre las
-  filas del slot, con **retry** en fallo de serialización. Cubrir con tests
-  dedicados (es el de mayor riesgo según la memoria heredada).
+  disponibilidad + insertar en la misma transacción"). En Postgres se restaura la
+  validez dura de la BD (la app vivió en Postgres antes; el DDL es recuperable del
+  historial): **`EXCLUDE USING gist`** para el no-solape por empleado (atómico) +
+  **`pg_advisory_xact_lock` por servicio** para la capacidad concurrente. El detalle
+  vive en el spec del sub-proyecto A.
 - **Connection pooling**: pool de `pg` / PgBouncer.
 
 **A.2 — Matar el "first-boot", pasar a gating por-tenant.**
