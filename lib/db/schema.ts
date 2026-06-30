@@ -1,37 +1,39 @@
 import { sql } from 'drizzle-orm'
 import {
+  bigint,
+  boolean,
   check,
   customType,
   index,
   integer,
+  jsonb,
+  pgTable,
   primaryKey,
-  sqliteTable,
   text,
+  timestamp,
   uniqueIndex,
-} from 'drizzle-orm/sqlite-core'
+} from 'drizzle-orm/pg-core'
 
+// email case-insensitive (extensión citext, creada en Task 4)
 const citext = customType<{ data: string; driverData: string }>({
   dataType() {
-    return 'text collate nocase'
+    return 'citext'
   },
 })
 
-const NOW_MS = sql`(unixepoch() * 1000)`
-const TODAY_DATE = sql`(date('now'))`
-
-export const salons = sqliteTable(
+export const salons = pgTable(
   'salons',
   {
-    id: integer().primaryKey({ autoIncrement: true }),
+    id: bigint({ mode: 'number' }).primaryKey().generatedAlwaysAsIdentity(),
     slug: text().notNull().unique(),
     name: text().notNull(),
     timezone: text().notNull().default('Europe/Madrid'),
     locale: text().notNull().default('es-ES'),
     slot_granularity_minutes: integer().notNull().default(15),
-    settings: text({ mode: 'json' })
+    settings: jsonb()
       .$type<Record<string, unknown>>()
       .notNull()
-      .default(sql`'{}'`),
+      .default({}),
     address: text(),
     phone: text(),
     contact_email: text(),
@@ -41,10 +43,11 @@ export const salons = sqliteTable(
     cancellation_min_hours: integer().notNull().default(12),
     cancellation_policy_text: text(),
     terms_text: text(),
-    notify_salon_on_new_booking: integer({ mode: 'boolean' })
+    notify_salon_on_new_booking: boolean().notNull().default(true),
+    created_at: timestamp({ withTimezone: true, mode: 'date' })
       .notNull()
-      .default(true),
-    created_at: integer({ mode: 'timestamp_ms' }).notNull().default(NOW_MS),
+      .defaultNow(),
+    onboarding_completed_at: timestamp({ withTimezone: true, mode: 'date' }),
   },
   (t) => [
     check(
@@ -66,22 +69,24 @@ export const salons = sqliteTable(
   ],
 )
 
-export const app_users = sqliteTable(
+export const app_users = pgTable(
   'app_users',
   {
     id: text().primaryKey(),
-    salon_id: integer()
+    salon_id: bigint({ mode: 'number' })
       .notNull()
       .references(() => salons.id, { onDelete: 'restrict' }),
     role: text().notNull(),
     email: citext().notNull(),
     password_hash: text().notNull(),
     display_name: text().notNull(),
-    is_active: integer({ mode: 'boolean' }).notNull().default(true),
-    email_verified_at: integer({ mode: 'timestamp_ms' }),
-    last_login_at: integer({ mode: 'timestamp_ms' }),
-    welcome_seen_at: integer({ mode: 'timestamp_ms' }),
-    created_at: integer({ mode: 'timestamp_ms' }).notNull().default(NOW_MS),
+    is_active: boolean().notNull().default(true),
+    email_verified_at: timestamp({ withTimezone: true, mode: 'date' }),
+    last_login_at: timestamp({ withTimezone: true, mode: 'date' }),
+    welcome_seen_at: timestamp({ withTimezone: true, mode: 'date' }),
+    created_at: timestamp({ withTimezone: true, mode: 'date' })
+      .notNull()
+      .defaultNow(),
   },
   (t) => [
     check('app_users_role_check', sql`${t.role} in ('admin','staff')`),
@@ -90,18 +95,22 @@ export const app_users = sqliteTable(
   ],
 )
 
-export const auth_sessions = sqliteTable(
+export const auth_sessions = pgTable(
   'auth_sessions',
   {
     id: text().primaryKey(),
     user_id: text()
       .notNull()
       .references(() => app_users.id, { onDelete: 'cascade' }),
-    expires_at: integer({ mode: 'timestamp_ms' }).notNull(),
+    expires_at: timestamp({ withTimezone: true, mode: 'date' }).notNull(),
     user_agent: text(),
     ip: text(),
-    created_at: integer({ mode: 'timestamp_ms' }).notNull().default(NOW_MS),
-    last_used_at: integer({ mode: 'timestamp_ms' }).notNull().default(NOW_MS),
+    created_at: timestamp({ withTimezone: true, mode: 'date' })
+      .notNull()
+      .defaultNow(),
+    last_used_at: timestamp({ withTimezone: true, mode: 'date' })
+      .notNull()
+      .defaultNow(),
   },
   (t) => [
     index('auth_sessions_user_id_idx').on(t.user_id),
@@ -109,26 +118,28 @@ export const auth_sessions = sqliteTable(
   ],
 )
 
-export const auth_password_reset_tokens = sqliteTable(
+export const auth_password_reset_tokens = pgTable(
   'auth_password_reset_tokens',
   {
-    id: integer().primaryKey({ autoIncrement: true }),
+    id: bigint({ mode: 'number' }).primaryKey().generatedAlwaysAsIdentity(),
     user_id: text()
       .notNull()
       .references(() => app_users.id, { onDelete: 'cascade' }),
     token_hash: text().notNull().unique(),
-    expires_at: integer({ mode: 'timestamp_ms' }).notNull(),
-    used_at: integer({ mode: 'timestamp_ms' }),
-    created_at: integer({ mode: 'timestamp_ms' }).notNull().default(NOW_MS),
+    expires_at: timestamp({ withTimezone: true, mode: 'date' }).notNull(),
+    used_at: timestamp({ withTimezone: true, mode: 'date' }),
+    created_at: timestamp({ withTimezone: true, mode: 'date' })
+      .notNull()
+      .defaultNow(),
   },
   (t) => [index('auth_password_reset_user_id_idx').on(t.user_id)],
 )
 
-export const employees = sqliteTable(
+export const employees = pgTable(
   'employees',
   {
-    id: integer().primaryKey({ autoIncrement: true }),
-    salon_id: integer()
+    id: bigint({ mode: 'number' }).primaryKey().generatedAlwaysAsIdentity(),
+    salon_id: bigint({ mode: 'number' })
       .notNull()
       .references(() => salons.id, { onDelete: 'restrict' }),
     app_user_id: text().references(() => app_users.id, {
@@ -138,10 +149,12 @@ export const employees = sqliteTable(
     slug: text().notNull(),
     bio: text(),
     photo_path: text(),
-    is_active: integer({ mode: 'boolean' }).notNull().default(true),
+    is_active: boolean().notNull().default(true),
     display_order: integer().notNull().default(0),
     color_hex: text(),
-    created_at: integer({ mode: 'timestamp_ms' }).notNull().default(NOW_MS),
+    created_at: timestamp({ withTimezone: true, mode: 'date' })
+      .notNull()
+      .defaultNow(),
   },
   (t) => [
     uniqueIndex('employees_salon_slug_unique').on(t.salon_id, t.slug),
@@ -151,16 +164,16 @@ export const employees = sqliteTable(
       .where(sql`${t.app_user_id} is not null`),
     check(
       'employees_color_hex_format',
-      sql`${t.color_hex} is null or ${t.color_hex} glob '#[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]'`,
+      sql`${t.color_hex} is null or ${t.color_hex} ~ '^#[0-9A-Fa-f]{6}$'`,
     ),
   ],
 )
 
-export const services = sqliteTable(
+export const services = pgTable(
   'services',
   {
-    id: integer().primaryKey({ autoIncrement: true }),
-    salon_id: integer()
+    id: bigint({ mode: 'number' }).primaryKey().generatedAlwaysAsIdentity(),
+    salon_id: bigint({ mode: 'number' })
       .notNull()
       .references(() => salons.id, { onDelete: 'restrict' }),
     name: text().notNull(),
@@ -170,9 +183,11 @@ export const services = sqliteTable(
     price_cents: integer().notNull(),
     max_concurrent: integer(),
     color_hex: text(),
-    is_active: integer({ mode: 'boolean' }).notNull().default(true),
+    is_active: boolean().notNull().default(true),
     display_order: integer().notNull().default(0),
-    created_at: integer({ mode: 'timestamp_ms' }).notNull().default(NOW_MS),
+    created_at: timestamp({ withTimezone: true, mode: 'date' })
+      .notNull()
+      .defaultNow(),
   },
   (t) => [
     uniqueIndex('services_salon_slug_unique').on(t.salon_id, t.slug),
@@ -188,21 +203,23 @@ export const services = sqliteTable(
     ),
     check(
       'services_color_hex_format',
-      sql`${t.color_hex} is null or ${t.color_hex} glob '#[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]'`,
+      sql`${t.color_hex} is null or ${t.color_hex} ~ '^#[0-9A-Fa-f]{6}$'`,
     ),
   ],
 )
 
-export const employee_services = sqliteTable(
+export const employee_services = pgTable(
   'employee_services',
   {
-    employee_id: integer()
+    employee_id: bigint({ mode: 'number' })
       .notNull()
       .references(() => employees.id, { onDelete: 'cascade' }),
-    service_id: integer()
+    service_id: bigint({ mode: 'number' })
       .notNull()
       .references(() => services.id, { onDelete: 'cascade' }),
-    created_at: integer({ mode: 'timestamp_ms' }).notNull().default(NOW_MS),
+    created_at: timestamp({ withTimezone: true, mode: 'date' })
+      .notNull()
+      .defaultNow(),
   },
   (t) => [
     primaryKey({ columns: [t.employee_id, t.service_id] }),
@@ -210,19 +227,21 @@ export const employee_services = sqliteTable(
   ],
 )
 
-export const clients = sqliteTable(
+export const clients = pgTable(
   'clients',
   {
-    id: integer().primaryKey({ autoIncrement: true }),
-    salon_id: integer()
+    id: bigint({ mode: 'number' }).primaryKey().generatedAlwaysAsIdentity(),
+    salon_id: bigint({ mode: 'number' })
       .notNull()
       .references(() => salons.id, { onDelete: 'restrict' }),
     email: citext(),
     phone: text(),
     display_name: text().notNull(),
     internal_notes: text(),
-    marketing_consent: integer({ mode: 'boolean' }).notNull().default(false),
-    created_at: integer({ mode: 'timestamp_ms' }).notNull().default(NOW_MS),
+    marketing_consent: boolean().notNull().default(false),
+    created_at: timestamp({ withTimezone: true, mode: 'date' })
+      .notNull()
+      .defaultNow(),
   },
   (t) => [
     check(
@@ -239,19 +258,21 @@ export const clients = sqliteTable(
   ],
 )
 
-export const employee_weekly_schedule = sqliteTable(
+export const employee_weekly_schedule = pgTable(
   'employee_weekly_schedule',
   {
-    id: integer().primaryKey({ autoIncrement: true }),
-    employee_id: integer()
+    id: bigint({ mode: 'number' }).primaryKey().generatedAlwaysAsIdentity(),
+    employee_id: bigint({ mode: 'number' })
       .notNull()
       .references(() => employees.id, { onDelete: 'cascade' }),
     weekday: integer().notNull(),
     starts_at: text().notNull(),
     ends_at: text().notNull(),
-    effective_from: text().notNull().default(TODAY_DATE),
+    effective_from: text().notNull(),
     effective_until: text(),
-    created_at: integer({ mode: 'timestamp_ms' }).notNull().default(NOW_MS),
+    created_at: timestamp({ withTimezone: true, mode: 'date' })
+      .notNull()
+      .defaultNow(),
   },
   (t) => [
     check('ews_weekday_range', sql`${t.weekday} between 1 and 7`),
@@ -270,20 +291,22 @@ export const employee_weekly_schedule = sqliteTable(
   ],
 )
 
-export const employee_recurring_breaks = sqliteTable(
+export const employee_recurring_breaks = pgTable(
   'employee_recurring_breaks',
   {
-    id: integer().primaryKey({ autoIncrement: true }),
-    employee_id: integer()
+    id: bigint({ mode: 'number' }).primaryKey().generatedAlwaysAsIdentity(),
+    employee_id: bigint({ mode: 'number' })
       .notNull()
       .references(() => employees.id, { onDelete: 'cascade' }),
     weekday: integer().notNull(),
     starts_at: text().notNull(),
     ends_at: text().notNull(),
-    effective_from: text().notNull().default(TODAY_DATE),
+    effective_from: text().notNull(),
     effective_until: text(),
     label: text(),
-    created_at: integer({ mode: 'timestamp_ms' }).notNull().default(NOW_MS),
+    created_at: timestamp({ withTimezone: true, mode: 'date' })
+      .notNull()
+      .defaultNow(),
   },
   (t) => [
     check('erb_weekday_range', sql`${t.weekday} between 1 and 7`),
@@ -302,19 +325,21 @@ export const employee_recurring_breaks = sqliteTable(
   ],
 )
 
-export const employee_time_off = sqliteTable(
+export const employee_time_off = pgTable(
   'employee_time_off',
   {
-    id: integer().primaryKey({ autoIncrement: true }),
-    employee_id: integer()
+    id: bigint({ mode: 'number' }).primaryKey().generatedAlwaysAsIdentity(),
+    employee_id: bigint({ mode: 'number' })
       .notNull()
       .references(() => employees.id, { onDelete: 'cascade' }),
-    starts_at: integer({ mode: 'timestamp_ms' }).notNull(),
-    ends_at: integer({ mode: 'timestamp_ms' }).notNull(),
+    starts_at: timestamp({ withTimezone: true, mode: 'date' }).notNull(),
+    ends_at: timestamp({ withTimezone: true, mode: 'date' }).notNull(),
     reason: text().notNull(),
     note: text(),
     created_by: text().references(() => app_users.id),
-    created_at: integer({ mode: 'timestamp_ms' }).notNull().default(NOW_MS),
+    created_at: timestamp({ withTimezone: true, mode: 'date' })
+      .notNull()
+      .defaultNow(),
   },
   (t) => [
     check('eto_ends_after_starts', sql`${t.ends_at} > ${t.starts_at}`),
@@ -326,18 +351,20 @@ export const employee_time_off = sqliteTable(
   ],
 )
 
-export const salon_closures = sqliteTable(
+export const salon_closures = pgTable(
   'salon_closures',
   {
-    id: integer().primaryKey({ autoIncrement: true }),
-    salon_id: integer()
+    id: bigint({ mode: 'number' }).primaryKey().generatedAlwaysAsIdentity(),
+    salon_id: bigint({ mode: 'number' })
       .notNull()
       .references(() => salons.id, { onDelete: 'cascade' }),
-    starts_at: integer({ mode: 'timestamp_ms' }).notNull(),
-    ends_at: integer({ mode: 'timestamp_ms' }).notNull(),
+    starts_at: timestamp({ withTimezone: true, mode: 'date' }).notNull(),
+    ends_at: timestamp({ withTimezone: true, mode: 'date' }).notNull(),
     label: text().notNull(),
     created_by: text().references(() => app_users.id),
-    created_at: integer({ mode: 'timestamp_ms' }).notNull().default(NOW_MS),
+    created_at: timestamp({ withTimezone: true, mode: 'date' })
+      .notNull()
+      .defaultNow(),
   },
   (t) => [
     check('sc_ends_after_starts', sql`${t.ends_at} > ${t.starts_at}`),
@@ -345,17 +372,19 @@ export const salon_closures = sqliteTable(
   ],
 )
 
-export const salon_working_hours = sqliteTable(
+export const salon_working_hours = pgTable(
   'salon_working_hours',
   {
-    id: integer().primaryKey({ autoIncrement: true }),
-    salon_id: integer()
+    id: bigint({ mode: 'number' }).primaryKey().generatedAlwaysAsIdentity(),
+    salon_id: bigint({ mode: 'number' })
       .notNull()
       .references(() => salons.id, { onDelete: 'cascade' }),
     weekday: integer().notNull(),
     opens_at: text(),
     closes_at: text(),
-    created_at: integer({ mode: 'timestamp_ms' }).notNull().default(NOW_MS),
+    created_at: timestamp({ withTimezone: true, mode: 'date' })
+      .notNull()
+      .defaultNow(),
   },
   (t) => [
     check('swh_weekday_range', sql`${t.weekday} between 1 and 7`),
@@ -371,30 +400,32 @@ export const salon_working_hours = sqliteTable(
   ],
 )
 
-export const bookings = sqliteTable(
+export const bookings = pgTable(
   'bookings',
   {
-    id: integer().primaryKey({ autoIncrement: true }),
+    id: bigint({ mode: 'number' }).primaryKey().generatedAlwaysAsIdentity(),
     public_id: text()
       .notNull()
       .unique()
       .$defaultFn(() => crypto.randomUUID()),
-    salon_id: integer()
+    salon_id: bigint({ mode: 'number' })
       .notNull()
       .references(() => salons.id, { onDelete: 'restrict' }),
-    client_id: integer()
+    client_id: bigint({ mode: 'number' })
       .notNull()
       .references(() => clients.id, { onDelete: 'restrict' }),
-    starts_at: integer({ mode: 'timestamp_ms' }).notNull(),
-    ends_at: integer({ mode: 'timestamp_ms' }).notNull(),
+    starts_at: timestamp({ withTimezone: true, mode: 'date' }).notNull(),
+    ends_at: timestamp({ withTimezone: true, mode: 'date' }).notNull(),
     status: text().notNull(),
     client_note: text(),
     internal_note: text(),
     source: text().notNull().default('web'),
     idempotency_key: text().unique(),
-    created_at: integer({ mode: 'timestamp_ms' }).notNull().default(NOW_MS),
-    confirmed_at: integer({ mode: 'timestamp_ms' }),
-    cancelled_at: integer({ mode: 'timestamp_ms' }),
+    created_at: timestamp({ withTimezone: true, mode: 'date' })
+      .notNull()
+      .defaultNow(),
+    confirmed_at: timestamp({ withTimezone: true, mode: 'date' }),
+    cancelled_at: timestamp({ withTimezone: true, mode: 'date' }),
     cancellation_reason: text(),
     version: integer().notNull().default(0),
   },
@@ -414,30 +445,30 @@ export const bookings = sqliteTable(
   ],
 )
 
-export const booking_items = sqliteTable(
+export const booking_items = pgTable(
   'booking_items',
   {
-    id: integer().primaryKey({ autoIncrement: true }),
-    booking_id: integer()
+    id: bigint({ mode: 'number' }).primaryKey().generatedAlwaysAsIdentity(),
+    booking_id: bigint({ mode: 'number' })
       .notNull()
       .references(() => bookings.id, { onDelete: 'cascade' }),
-    salon_id: integer()
+    salon_id: bigint({ mode: 'number' })
       .notNull()
       .references(() => salons.id, { onDelete: 'restrict' }),
     position: integer().notNull(),
-    service_id: integer()
+    service_id: bigint({ mode: 'number' })
       .notNull()
       .references(() => services.id, { onDelete: 'restrict' }),
-    employee_id: integer()
+    employee_id: bigint({ mode: 'number' })
       .notNull()
       .references(() => employees.id, { onDelete: 'restrict' }),
-    starts_at: integer({ mode: 'timestamp_ms' }).notNull(),
-    ends_at: integer({ mode: 'timestamp_ms' }).notNull(),
-    service_snapshot: text({ mode: 'json' })
-      .$type<Record<string, unknown>>()
-      .notNull(),
+    starts_at: timestamp({ withTimezone: true, mode: 'date' }).notNull(),
+    ends_at: timestamp({ withTimezone: true, mode: 'date' }).notNull(),
+    service_snapshot: jsonb().$type<Record<string, unknown>>().notNull(),
     booking_status: text().notNull(),
-    created_at: integer({ mode: 'timestamp_ms' }).notNull().default(NOW_MS),
+    created_at: timestamp({ withTimezone: true, mode: 'date' })
+      .notNull()
+      .defaultNow(),
   },
   (t) => [
     check('booking_items_position_nonneg', sql`${t.position} >= 0`),
@@ -461,14 +492,14 @@ export const booking_items = sqliteTable(
   ],
 )
 
-export const booking_status_events = sqliteTable(
+export const booking_status_events = pgTable(
   'booking_status_events',
   {
-    id: integer().primaryKey({ autoIncrement: true }),
-    booking_id: integer()
+    id: bigint({ mode: 'number' }).primaryKey().generatedAlwaysAsIdentity(),
+    booking_id: bigint({ mode: 'number' })
       .notNull()
       .references(() => bookings.id, { onDelete: 'cascade' }),
-    salon_id: integer()
+    salon_id: bigint({ mode: 'number' })
       .notNull()
       .references(() => salons.id, { onDelete: 'restrict' }),
     from_status: text(),
@@ -476,7 +507,9 @@ export const booking_status_events = sqliteTable(
     actor_type: text().notNull(),
     actor_id: text(),
     reason: text(),
-    at: integer({ mode: 'timestamp_ms' }).notNull().default(NOW_MS),
+    at: timestamp({ withTimezone: true, mode: 'date' })
+      .notNull()
+      .defaultNow(),
   },
   (t) => [
     check(
@@ -487,18 +520,20 @@ export const booking_status_events = sqliteTable(
   ],
 )
 
-export const booking_tokens = sqliteTable(
+export const booking_tokens = pgTable(
   'booking_tokens',
   {
-    id: integer().primaryKey({ autoIncrement: true }),
-    booking_id: integer()
+    id: bigint({ mode: 'number' }).primaryKey().generatedAlwaysAsIdentity(),
+    booking_id: bigint({ mode: 'number' })
       .notNull()
       .references(() => bookings.id, { onDelete: 'cascade' }),
     token_hash: text().notNull().unique(),
     purpose: text().notNull().default('manage'),
-    expires_at: integer({ mode: 'timestamp_ms' }).notNull(),
-    used_at: integer({ mode: 'timestamp_ms' }),
-    created_at: integer({ mode: 'timestamp_ms' }).notNull().default(NOW_MS),
+    expires_at: timestamp({ withTimezone: true, mode: 'date' }).notNull(),
+    used_at: timestamp({ withTimezone: true, mode: 'date' }),
+    created_at: timestamp({ withTimezone: true, mode: 'date' })
+      .notNull()
+      .defaultNow(),
   },
   (t) => [
     check('booking_tokens_purpose_check', sql`${t.purpose} in ('manage')`),
@@ -506,19 +541,21 @@ export const booking_tokens = sqliteTable(
   ],
 )
 
-export const booking_notifications = sqliteTable(
+export const booking_notifications = pgTable(
   'booking_notifications',
   {
-    id: integer().primaryKey({ autoIncrement: true }),
-    booking_id: integer()
+    id: bigint({ mode: 'number' }).primaryKey().generatedAlwaysAsIdentity(),
+    booking_id: bigint({ mode: 'number' })
       .notNull()
       .references(() => bookings.id, { onDelete: 'cascade' }),
-    salon_id: integer()
+    salon_id: bigint({ mode: 'number' })
       .notNull()
       .references(() => salons.id, { onDelete: 'cascade' }),
     kind: text().notNull(),
     version: integer().notNull().default(0),
-    sent_at: integer({ mode: 'timestamp_ms' }).notNull().default(NOW_MS),
+    sent_at: timestamp({ withTimezone: true, mode: 'date' })
+      .notNull()
+      .defaultNow(),
     provider_message_id: text(),
   },
   (t) => [
