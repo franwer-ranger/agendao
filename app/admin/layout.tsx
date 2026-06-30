@@ -22,6 +22,7 @@ import {
 import { Toaster } from '@/components/ui/sonner'
 import { auth } from '@/lib/auth'
 import { getCurrentSalon } from '@/lib/salon'
+import { isInstanceConfigured } from '@/lib/setup/is-configured'
 
 import { SidebarNavLink } from './_components/sidebar-nav-link'
 import { SignOutButton } from './_components/sign-out-button'
@@ -33,6 +34,10 @@ export default async function AdminLayout({
 }: {
   children: React.ReactNode
 }) {
+  if (!(await isInstanceConfigured())) {
+    redirect('/setup')
+  }
+
   const session = await auth()
   if (!session?.user) {
     redirect('/login')
