@@ -80,6 +80,7 @@ export const app_users = sqliteTable(
     is_active: integer({ mode: 'boolean' }).notNull().default(true),
     email_verified_at: integer({ mode: 'timestamp_ms' }),
     last_login_at: integer({ mode: 'timestamp_ms' }),
+    welcome_seen_at: integer({ mode: 'timestamp_ms' }),
     created_at: integer({ mode: 'timestamp_ms' }).notNull().default(NOW_MS),
   },
   (t) => [

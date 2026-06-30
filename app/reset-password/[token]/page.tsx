@@ -1,6 +1,8 @@
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 
 import { validateResetToken } from '@/lib/auth/password-reset'
+import { isInstanceConfigured } from '@/lib/setup/is-configured'
 
 import { ResetPasswordForm } from './_components/reset-form'
 
@@ -11,6 +13,10 @@ export default async function ResetPasswordPage({
 }: {
   params: Promise<{ token: string }>
 }) {
+  if (!(await isInstanceConfigured())) {
+    redirect('/setup')
+  }
+
   const { token } = await params
   const valid = await validateResetToken(token)
 

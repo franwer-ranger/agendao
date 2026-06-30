@@ -1,0 +1,1 @@
+ALTER TABLE `app_users` ADD `welcome_seen_at` integer;

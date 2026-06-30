@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 
 import { auth } from '@/lib/auth'
+import { isInstanceConfigured } from '@/lib/setup/is-configured'
 
 import { LoginForm } from './_components/login-form'
 
@@ -13,6 +14,10 @@ export default async function LoginPage({
 }: {
   searchParams: Promise<SearchParams>
 }) {
+  if (!(await isInstanceConfigured())) {
+    redirect('/setup')
+  }
+
   const session = await auth()
   if (session?.user) {
     redirect('/admin/today')
