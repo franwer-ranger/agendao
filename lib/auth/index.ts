@@ -31,11 +31,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (!parsed.success) return null
         const { email, password } = parsed.data
 
-        const user = db
-          .select()
-          .from(app_users)
-          .where(eq(app_users.email, email))
-          .get()
+        const user = (
+          await db
+            .select()
+            .from(app_users)
+            .where(eq(app_users.email, email))
+            .limit(1)
+        )[0]
 
         if (!user || !user.is_active) return null
         if (user.role !== 'admin' && user.role !== 'staff') return null
@@ -44,10 +46,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (!ok) return null
 
         try {
-          db.update(app_users)
+          await db
+            .update(app_users)
             .set({ last_login_at: new Date() })
             .where(eq(app_users.id, user.id))
-            .run()
         } catch {
           // ignore — login should not fail on this side effect
         }

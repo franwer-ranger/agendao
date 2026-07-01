@@ -26,50 +26,50 @@ export async function createSession(
 ): Promise<CreatedSession> {
   const id = randomUUID()
   const expiresAt = new Date(Date.now() + SESSION_TTL_MS)
-  db.insert(auth_sessions)
-    .values({
-      id,
-      user_id: userId,
-      expires_at: expiresAt,
-      user_agent: ctx?.userAgent ?? null,
-      ip: ctx?.ip ?? null,
-    })
-    .run()
+  await db.insert(auth_sessions).values({
+    id,
+    user_id: userId,
+    expires_at: expiresAt,
+    user_agent: ctx?.userAgent ?? null,
+    ip: ctx?.ip ?? null,
+  })
   return { id, expiresAt }
 }
 
 export async function validateSession(
   sessionId: string,
 ): Promise<ValidatedSession | null> {
-  const row = db
-    .select({
-      sessionId: auth_sessions.id,
-      userId: app_users.id,
-      email: app_users.email,
-      displayName: app_users.display_name,
-      role: app_users.role,
-      salonId: app_users.salon_id,
-      isActive: app_users.is_active,
-    })
-    .from(auth_sessions)
-    .innerJoin(app_users, eq(app_users.id, auth_sessions.user_id))
-    .where(
-      and(
-        eq(auth_sessions.id, sessionId),
-        gt(auth_sessions.expires_at, new Date()),
-      ),
-    )
-    .get()
+  const row = (
+    await db
+      .select({
+        sessionId: auth_sessions.id,
+        userId: app_users.id,
+        email: app_users.email,
+        displayName: app_users.display_name,
+        role: app_users.role,
+        salonId: app_users.salon_id,
+        isActive: app_users.is_active,
+      })
+      .from(auth_sessions)
+      .innerJoin(app_users, eq(app_users.id, auth_sessions.user_id))
+      .where(
+        and(
+          eq(auth_sessions.id, sessionId),
+          gt(auth_sessions.expires_at, new Date()),
+        ),
+      )
+      .limit(1)
+  )[0]
 
   if (!row || !row.isActive) return null
   if (row.role !== 'admin' && row.role !== 'staff') return null
 
   // Best-effort refresh of last_used_at; failure to update should not block auth.
   try {
-    db.update(auth_sessions)
+    await db
+      .update(auth_sessions)
       .set({ last_used_at: new Date() })
       .where(eq(auth_sessions.id, sessionId))
-      .run()
   } catch {
     // ignore
   }
@@ -85,9 +85,9 @@ export async function validateSession(
 }
 
 export async function revokeSession(sessionId: string): Promise<void> {
-  db.delete(auth_sessions).where(eq(auth_sessions.id, sessionId)).run()
+  await db.delete(auth_sessions).where(eq(auth_sessions.id, sessionId))
 }
 
 export async function revokeAllSessionsForUser(userId: string): Promise<void> {
-  db.delete(auth_sessions).where(eq(auth_sessions.user_id, userId)).run()
+  await db.delete(auth_sessions).where(eq(auth_sessions.user_id, userId))
 }

@@ -28,17 +28,19 @@ export async function requestPasswordReset(
   const email = emailRaw.trim()
   if (!email) return { ok: true }
 
-  const user = db
-    .select({
-      id: app_users.id,
-      email: app_users.email,
-      display_name: app_users.display_name,
-      is_active: app_users.is_active,
-      salon_id: app_users.salon_id,
-    })
-    .from(app_users)
-    .where(eq(app_users.email, email))
-    .get()
+  const user = (
+    await db
+      .select({
+        id: app_users.id,
+        email: app_users.email,
+        display_name: app_users.display_name,
+        is_active: app_users.is_active,
+        salon_id: app_users.salon_id,
+      })
+      .from(app_users)
+      .where(eq(app_users.email, email))
+      .limit(1)
+  )[0]
 
   // Always return success to avoid user enumeration.
   if (!user || !user.is_active) return { ok: true }
@@ -47,19 +49,19 @@ export async function requestPasswordReset(
   const tokenHash = sha256(plaintext)
   const expiresAt = new Date(Date.now() + TOKEN_TTL_MS)
 
-  db.insert(auth_password_reset_tokens)
-    .values({
-      user_id: user.id,
-      token_hash: tokenHash,
-      expires_at: expiresAt,
-    })
-    .run()
+  await db.insert(auth_password_reset_tokens).values({
+    user_id: user.id,
+    token_hash: tokenHash,
+    expires_at: expiresAt,
+  })
 
-  const salon = db
-    .select({ name: salons.name })
-    .from(salons)
-    .where(eq(salons.id, user.salon_id))
-    .get()
+  const salon = (
+    await db
+      .select({ name: salons.name })
+      .from(salons)
+      .where(eq(salons.id, user.salon_id))
+      .limit(1)
+  )[0]
 
   const resetUrl = `${getAppUrl()}/reset-password/${plaintext}`
 
@@ -87,20 +89,22 @@ export async function validateResetToken(
 ): Promise<ValidatedResetToken | null> {
   if (!plaintext) return null
   const tokenHash = sha256(plaintext)
-  const row = db
-    .select({
-      id: auth_password_reset_tokens.id,
-      user_id: auth_password_reset_tokens.user_id,
-    })
-    .from(auth_password_reset_tokens)
-    .where(
-      and(
-        eq(auth_password_reset_tokens.token_hash, tokenHash),
-        isNull(auth_password_reset_tokens.used_at),
-        gt(auth_password_reset_tokens.expires_at, new Date()),
-      ),
-    )
-    .get()
+  const row = (
+    await db
+      .select({
+        id: auth_password_reset_tokens.id,
+        user_id: auth_password_reset_tokens.user_id,
+      })
+      .from(auth_password_reset_tokens)
+      .where(
+        and(
+          eq(auth_password_reset_tokens.token_hash, tokenHash),
+          isNull(auth_password_reset_tokens.used_at),
+          gt(auth_password_reset_tokens.expires_at, new Date()),
+        ),
+      )
+      .limit(1)
+  )[0]
   if (!row) return null
   return { userId: row.user_id, tokenRowId: row.id }
 }
@@ -118,15 +122,15 @@ export async function consumeResetToken(
 
   try {
     const hashed = await hashPassword(newPassword)
-    db.transaction((tx) => {
-      tx.update(app_users)
+    await db.transaction(async (tx) => {
+      await tx
+        .update(app_users)
         .set({ password_hash: hashed })
         .where(eq(app_users.id, validated.userId))
-        .run()
-      tx.update(auth_password_reset_tokens)
+      await tx
+        .update(auth_password_reset_tokens)
         .set({ used_at: new Date() })
         .where(eq(auth_password_reset_tokens.id, validated.tokenRowId))
-        .run()
     })
     await revokeAllSessionsForUser(validated.userId)
     return { ok: true }
