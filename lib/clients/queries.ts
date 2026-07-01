@@ -11,33 +11,31 @@ export type UpsertClientForBookingInput = {
   email: string | null
 }
 
-function isSqliteUniqueError(err: unknown): boolean {
+function isPgUniqueError(err: unknown): boolean {
   return (
     err instanceof Error &&
     'code' in err &&
-    (err as { code: unknown }).code === 'SQLITE_CONSTRAINT_UNIQUE'
+    (err as { code: unknown }).code === '23505'
   )
 }
 
-function selectByEmail(salonId: number, email: string): number | null {
+async function selectByEmail(salonId: number, email: string): Promise<number | null> {
   // `clients.email` está declarado con `collate nocase` → la comparación
   // ya es case-insensitive sin lower().
-  const row = db
+  const row = (await db
     .select({ id: clients.id })
     .from(clients)
     .where(and(eq(clients.salon_id, salonId), eq(clients.email, email)))
-    .limit(1)
-    .get()
+    .limit(1))[0]
   return row?.id ?? null
 }
 
-function selectByPhone(salonId: number, phone: string): number | null {
-  const row = db
+async function selectByPhone(salonId: number, phone: string): Promise<number | null> {
+  const row = (await db
     .select({ id: clients.id })
     .from(clients)
     .where(and(eq(clients.salon_id, salonId), eq(clients.phone, phone)))
-    .limit(1)
-    .get()
+    .limit(1))[0]
   return row?.id ?? null
 }
 
@@ -58,16 +56,16 @@ export async function upsertClientForBooking(
   }
 
   if (input.email) {
-    const id = selectByEmail(input.salonId, input.email)
+    const id = await selectByEmail(input.salonId, input.email)
     if (id !== null) return { id }
   }
   if (input.phone) {
-    const id = selectByPhone(input.salonId, input.phone)
+    const id = await selectByPhone(input.salonId, input.phone)
     if (id !== null) return { id }
   }
 
   try {
-    const inserted = db
+    const inserted = await db
       .insert(clients)
       .values({
         salon_id: input.salonId,
@@ -76,20 +74,19 @@ export async function upsertClientForBooking(
         phone: input.phone,
       })
       .returning({ id: clients.id })
-      .all()
     const created = inserted[0]
     if (!created) throw new Error('No se pudo crear el cliente')
     return { id: created.id }
   } catch (e) {
     // Carrera: otra request creó el mismo cliente entre nuestros SELECT y el
     // INSERT. La UNIQUE parcial saltó; re-leemos para devolver el id ganador.
-    if (isSqliteUniqueError(e)) {
+    if (isPgUniqueError(e)) {
       if (input.email) {
-        const id = selectByEmail(input.salonId, input.email)
+        const id = await selectByEmail(input.salonId, input.email)
         if (id !== null) return { id }
       }
       if (input.phone) {
-        const id = selectByPhone(input.salonId, input.phone)
+        const id = await selectByPhone(input.salonId, input.phone)
         if (id !== null) return { id }
       }
     }
