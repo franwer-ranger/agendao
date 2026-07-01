@@ -76,11 +76,13 @@ async function resolveWelcomeUrl(
   const session = await auth()
   if (!session?.user?.id) return null
 
-  const user = db
-    .select({ welcome_seen_at: app_users.welcome_seen_at })
-    .from(app_users)
-    .where(eq(app_users.id, session.user.id))
-    .get()
+  const user = (
+    await db
+      .select({ welcome_seen_at: app_users.welcome_seen_at })
+      .from(app_users)
+      .where(eq(app_users.id, session.user.id))
+      .limit(1)
+  )[0]
   if (user?.welcome_seen_at) return null
 
   const h = await headers()

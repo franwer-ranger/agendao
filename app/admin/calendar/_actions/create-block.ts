@@ -67,42 +67,44 @@ export async function createBlockAction(
   )
 
   try {
-    const id = db.transaction((tx) => {
+    const id = await db.transaction(async (tx) => {
       // Pertenencia al salón.
-      const emp = tx
-        .select({ id: employees.id })
-        .from(employees)
-        .where(
-          and(
-            eq(employees.id, parsed.data.employee_id),
-            eq(employees.salon_id, salon.id),
-          ),
-        )
-        .limit(1)
-        .get()
+      const emp = (
+        await tx
+          .select({ id: employees.id })
+          .from(employees)
+          .where(
+            and(
+              eq(employees.id, parsed.data.employee_id),
+              eq(employees.salon_id, salon.id),
+            ),
+          )
+          .limit(1)
+      )[0]
       if (!emp) {
         throw new Error('Empleado no encontrado en el salón.')
       }
 
       // Replica del EXCLUDE GIST: rechazar si solapa con otro time-off
       // del mismo empleado. Half-open: start < otherEnd AND end > otherStart.
-      const overlap = tx
-        .select({ id: employee_time_off.id })
-        .from(employee_time_off)
-        .where(
-          and(
-            eq(employee_time_off.employee_id, parsed.data.employee_id),
-            lt(employee_time_off.starts_at, endsAt),
-            gt(employee_time_off.ends_at, startsAt),
-          ),
-        )
-        .limit(1)
-        .get()
+      const overlap = (
+        await tx
+          .select({ id: employee_time_off.id })
+          .from(employee_time_off)
+          .where(
+            and(
+              eq(employee_time_off.employee_id, parsed.data.employee_id),
+              lt(employee_time_off.starts_at, endsAt),
+              gt(employee_time_off.ends_at, startsAt),
+            ),
+          )
+          .limit(1)
+      )[0]
       if (overlap) {
         throw new Error('Ya existe un bloqueo que solapa con ese rango.')
       }
 
-      const inserted = tx
+      const inserted = await tx
         .insert(employee_time_off)
         .values({
           employee_id: parsed.data.employee_id,
@@ -112,7 +114,6 @@ export async function createBlockAction(
           note: parsed.data.note,
         })
         .returning({ id: employee_time_off.id })
-        .all()
       const created = inserted[0]
       if (!created) throw new Error('No se pudo crear el bloqueo.')
       return created.id

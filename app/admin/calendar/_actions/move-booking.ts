@@ -41,26 +41,28 @@ export async function moveBookingAction(input: {
   let newStartsIso: string
 
   try {
-    const out = db.transaction((tx) => {
-      const item = tx
-        .select({
-          id: booking_items.id,
-          booking_id: booking_items.booking_id,
-          employee_id: booking_items.employee_id,
-          service_id: booking_items.service_id,
-          starts_at: booking_items.starts_at,
-          ends_at: booking_items.ends_at,
-          booking_status: booking_items.booking_status,
-        })
-        .from(booking_items)
-        .where(
-          and(
-            eq(booking_items.salon_id, salon.id),
-            eq(booking_items.booking_id, input.bookingId),
-            eq(booking_items.position, 0),
-          ),
-        )
-        .get()
+    const out = await db.transaction(async (tx) => {
+      const item = (
+        await tx
+          .select({
+            id: booking_items.id,
+            booking_id: booking_items.booking_id,
+            employee_id: booking_items.employee_id,
+            service_id: booking_items.service_id,
+            starts_at: booking_items.starts_at,
+            ends_at: booking_items.ends_at,
+            booking_status: booking_items.booking_status,
+          })
+          .from(booking_items)
+          .where(
+            and(
+              eq(booking_items.salon_id, salon.id),
+              eq(booking_items.booking_id, input.bookingId),
+              eq(booking_items.position, 0),
+            ),
+          )
+          .limit(1)
+      )[0]
       if (!item) {
         throw new BookingValidationError('UNKNOWN', 'Reserva no encontrada.')
       }
@@ -79,7 +81,7 @@ export async function moveBookingAction(input: {
       previousStartsAt = item.starts_at.toISOString()
       newStartsIso = newStarts.toISOString()
 
-      validateBookingItemInterval(tx, {
+      await validateBookingItemInterval(tx, {
         salonId: salon.id,
         serviceId: item.service_id,
         employeeId: targetEmployeeId,
@@ -89,31 +91,30 @@ export async function moveBookingAction(input: {
         excludeItemId: item.id,
       })
 
-      tx.update(booking_items)
+      await tx
+        .update(booking_items)
         .set({
           starts_at: newStarts,
           ends_at: newEnds,
           employee_id: targetEmployeeId,
         })
         .where(eq(booking_items.id, item.id))
-        .run()
 
       // Replica del trigger `bookings_recompute_window`: window del booking
       // = MIN/MAX de sus items.
-      const windowRows = tx
+      const windowRows = await tx
         .select({
           min_starts: min(booking_items.starts_at),
           max_ends: max(booking_items.ends_at),
         })
         .from(booking_items)
         .where(eq(booking_items.booking_id, input.bookingId))
-        .all()
       const win = windowRows[0]
       if (win?.min_starts && win.max_ends) {
-        tx.update(bookings)
+        await tx
+          .update(bookings)
           .set({ starts_at: win.min_starts, ends_at: win.max_ends })
           .where(eq(bookings.id, input.bookingId))
-          .run()
       }
 
       return { ok: true as const }
