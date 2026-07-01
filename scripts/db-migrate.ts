@@ -10,4 +10,4 @@ const db = drizzle(pool)
 
 await migrate(db, { migrationsFolder: './drizzle' })
 await pool.end()
-process.stdout.write(`Migrations applied to Postgres\n`)
+process.stdout.write('Migrations applied to Postgres\n')
