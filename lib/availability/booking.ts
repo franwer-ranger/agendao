@@ -85,30 +85,32 @@ export type ValidateBookingItemIntervalInput = {
 // del EXCLUDE GIST por empleado activo. Lanza BookingValidationError con el
 // código del contrato. Devuelve service+salon ya cargados para que el caller
 // no los relea.
-export function validateBookingItemInterval(
+export async function validateBookingItemInterval(
   tx: TxDb,
   input: ValidateBookingItemIntervalInput,
-): ValidatedSnapshot {
+): Promise<ValidatedSnapshot> {
   // 1. service en el salón.
-  const service = tx
-    .select({
-      id: services.id,
-      salon_id: services.salon_id,
-      name: services.name,
-      duration_minutes: services.duration_minutes,
-      price_cents: services.price_cents,
-      color_hex: services.color_hex,
-      max_concurrent: services.max_concurrent,
-      is_active: services.is_active,
-    })
-    .from(services)
-    .where(
-      and(
-        eq(services.id, input.serviceId),
-        eq(services.salon_id, input.salonId),
-      ),
-    )
-    .get()
+  const service = (
+    await tx
+      .select({
+        id: services.id,
+        salon_id: services.salon_id,
+        name: services.name,
+        duration_minutes: services.duration_minutes,
+        price_cents: services.price_cents,
+        color_hex: services.color_hex,
+        max_concurrent: services.max_concurrent,
+        is_active: services.is_active,
+      })
+      .from(services)
+      .where(
+        and(
+          eq(services.id, input.serviceId),
+          eq(services.salon_id, input.salonId),
+        ),
+      )
+      .limit(1)
+  )[0]
   if (!service) {
     throw new BookingValidationError(
       'SALON_MISMATCH',
@@ -123,30 +125,34 @@ export function validateBookingItemInterval(
   }
 
   // 2. salón.
-  const salon = tx
-    .select({
-      id: salons.id,
-      timezone: salons.timezone,
-      booking_min_hours_ahead: salons.booking_min_hours_ahead,
-    })
-    .from(salons)
-    .where(eq(salons.id, input.salonId))
-    .get()
+  const salon = (
+    await tx
+      .select({
+        id: salons.id,
+        timezone: salons.timezone,
+        booking_min_hours_ahead: salons.booking_min_hours_ahead,
+      })
+      .from(salons)
+      .where(eq(salons.id, input.salonId))
+      .limit(1)
+  )[0]
   if (!salon) {
     throw new BookingValidationError('SALON_MISMATCH', 'Salón no encontrado.')
   }
 
   // 3. empleado pertenece al salón.
-  const emp = tx
-    .select({ id: employees.id })
-    .from(employees)
-    .where(
-      and(
-        eq(employees.id, input.employeeId),
-        eq(employees.salon_id, input.salonId),
-      ),
-    )
-    .get()
+  const emp = (
+    await tx
+      .select({ id: employees.id })
+      .from(employees)
+      .where(
+        and(
+          eq(employees.id, input.employeeId),
+          eq(employees.salon_id, input.salonId),
+        ),
+      )
+      .limit(1)
+  )[0]
   if (!emp) {
     throw new BookingValidationError(
       'SALON_MISMATCH',
@@ -155,16 +161,18 @@ export function validateBookingItemInterval(
   }
 
   // 4. employee autorizado para el servicio.
-  const auth = tx
-    .select({ employee_id: employee_services.employee_id })
-    .from(employee_services)
-    .where(
-      and(
-        eq(employee_services.employee_id, input.employeeId),
-        eq(employee_services.service_id, input.serviceId),
-      ),
-    )
-    .get()
+  const auth = (
+    await tx
+      .select({ employee_id: employee_services.employee_id })
+      .from(employee_services)
+      .where(
+        and(
+          eq(employee_services.employee_id, input.employeeId),
+          eq(employee_services.service_id, input.serviceId),
+        ),
+      )
+      .limit(1)
+  )[0]
   if (!auth) {
     throw new BookingValidationError(
       'EMPLOYEE_NOT_AUTHORIZED',
@@ -203,24 +211,25 @@ export function validateBookingItemInterval(
   const weekday = isoWeekdayFromYmd(localStartDate)
 
   // 9. Horario semanal del empleado cubre el intervalo.
-  const wsHit = tx
-    .select({ id: employee_weekly_schedule.id })
-    .from(employee_weekly_schedule)
-    .where(
-      and(
-        eq(employee_weekly_schedule.employee_id, input.employeeId),
-        eq(employee_weekly_schedule.weekday, weekday),
-        lte(employee_weekly_schedule.starts_at, localStartTime),
-        gte(employee_weekly_schedule.ends_at, localEndTime),
-        lte(employee_weekly_schedule.effective_from, localStartDate),
-        or(
-          isNull(employee_weekly_schedule.effective_until),
-          gte(employee_weekly_schedule.effective_until, localStartDate),
+  const wsHit = (
+    await tx
+      .select({ id: employee_weekly_schedule.id })
+      .from(employee_weekly_schedule)
+      .where(
+        and(
+          eq(employee_weekly_schedule.employee_id, input.employeeId),
+          eq(employee_weekly_schedule.weekday, weekday),
+          lte(employee_weekly_schedule.starts_at, localStartTime),
+          gte(employee_weekly_schedule.ends_at, localEndTime),
+          lte(employee_weekly_schedule.effective_from, localStartDate),
+          or(
+            isNull(employee_weekly_schedule.effective_until),
+            gte(employee_weekly_schedule.effective_until, localStartDate),
+          ),
         ),
-      ),
-    )
-    .limit(1)
-    .get()
+      )
+      .limit(1)
+  )[0]
   if (!wsHit) {
     throw new BookingValidationError(
       'OUTSIDE_SCHEDULE',
@@ -229,7 +238,7 @@ export function validateBookingItemInterval(
   }
 
   // 10. Horario del salón (si está configurado para este salón).
-  const swhRows = tx
+  const swhRows = await tx
     .select({
       opens_at: salon_working_hours.opens_at,
       closes_at: salon_working_hours.closes_at,
@@ -237,7 +246,6 @@ export function validateBookingItemInterval(
     })
     .from(salon_working_hours)
     .where(eq(salon_working_hours.salon_id, input.salonId))
-    .all()
   if (swhRows.length > 0) {
     const day = swhRows.find((r) => r.weekday === weekday)
     if (!day || day.opens_at === null || day.closes_at === null) {
@@ -255,24 +263,25 @@ export function validateBookingItemInterval(
   }
 
   // 11. Descansos recurrentes (no solape).
-  const breakHit = tx
-    .select({ id: employee_recurring_breaks.id })
-    .from(employee_recurring_breaks)
-    .where(
-      and(
-        eq(employee_recurring_breaks.employee_id, input.employeeId),
-        eq(employee_recurring_breaks.weekday, weekday),
-        lte(employee_recurring_breaks.effective_from, localStartDate),
-        or(
-          isNull(employee_recurring_breaks.effective_until),
-          gte(employee_recurring_breaks.effective_until, localStartDate),
+  const breakHit = (
+    await tx
+      .select({ id: employee_recurring_breaks.id })
+      .from(employee_recurring_breaks)
+      .where(
+        and(
+          eq(employee_recurring_breaks.employee_id, input.employeeId),
+          eq(employee_recurring_breaks.weekday, weekday),
+          lte(employee_recurring_breaks.effective_from, localStartDate),
+          or(
+            isNull(employee_recurring_breaks.effective_until),
+            gte(employee_recurring_breaks.effective_until, localStartDate),
+          ),
+          lt(employee_recurring_breaks.starts_at, localEndTime),
+          gt(employee_recurring_breaks.ends_at, localStartTime),
         ),
-        lt(employee_recurring_breaks.starts_at, localEndTime),
-        gt(employee_recurring_breaks.ends_at, localStartTime),
-      ),
-    )
-    .limit(1)
-    .get()
+      )
+      .limit(1)
+  )[0]
   if (breakHit) {
     throw new BookingValidationError(
       'OVERLAPS_BREAK',
@@ -281,18 +290,19 @@ export function validateBookingItemInterval(
   }
 
   // 12. Time-off del empleado (no solape).
-  const timeOffHit = tx
-    .select({ id: employee_time_off.id })
-    .from(employee_time_off)
-    .where(
-      and(
-        eq(employee_time_off.employee_id, input.employeeId),
-        lt(employee_time_off.starts_at, input.endsAt),
-        gt(employee_time_off.ends_at, input.startsAt),
-      ),
-    )
-    .limit(1)
-    .get()
+  const timeOffHit = (
+    await tx
+      .select({ id: employee_time_off.id })
+      .from(employee_time_off)
+      .where(
+        and(
+          eq(employee_time_off.employee_id, input.employeeId),
+          lt(employee_time_off.starts_at, input.endsAt),
+          gt(employee_time_off.ends_at, input.startsAt),
+        ),
+      )
+      .limit(1)
+  )[0]
   if (timeOffHit) {
     throw new BookingValidationError(
       'OVERLAPS_TIME_OFF',
@@ -301,18 +311,19 @@ export function validateBookingItemInterval(
   }
 
   // 13. Cierres del salón (no solape).
-  const closureHit = tx
-    .select({ id: salon_closures.id })
-    .from(salon_closures)
-    .where(
-      and(
-        eq(salon_closures.salon_id, input.salonId),
-        lt(salon_closures.starts_at, input.endsAt),
-        gt(salon_closures.ends_at, input.startsAt),
-      ),
-    )
-    .limit(1)
-    .get()
+  const closureHit = (
+    await tx
+      .select({ id: salon_closures.id })
+      .from(salon_closures)
+      .where(
+        and(
+          eq(salon_closures.salon_id, input.salonId),
+          lt(salon_closures.starts_at, input.endsAt),
+          gt(salon_closures.ends_at, input.startsAt),
+        ),
+      )
+      .limit(1)
+  )[0]
   if (closureHit) {
     throw new BookingValidationError(
       'OVERLAPS_CLOSURE',
@@ -332,12 +343,13 @@ export function validateBookingItemInterval(
     input.excludeItemId === undefined
       ? employeeOverlapBaseWhere
       : and(employeeOverlapBaseWhere, ne(booking_items.id, input.excludeItemId))
-  const employeeOverlap = tx
-    .select({ id: booking_items.id })
-    .from(booking_items)
-    .where(employeeOverlapWhere)
-    .limit(1)
-    .get()
+  const employeeOverlap = (
+    await tx
+      .select({ id: booking_items.id })
+      .from(booking_items)
+      .where(employeeOverlapWhere)
+      .limit(1)
+  )[0]
   if (employeeOverlap) {
     throw new BookingValidationError(
       'EMPLOYEE_OVERLAP',
@@ -357,11 +369,10 @@ export function validateBookingItemInterval(
       input.excludeItemId === undefined
         ? capacityBaseWhere
         : and(capacityBaseWhere, ne(booking_items.id, input.excludeItemId))
-    const [{ c: cnt = 0 } = { c: 0 }] = tx
+    const [{ c: cnt = 0 } = { c: 0 }] = await tx
       .select({ c: count() })
       .from(booking_items)
       .where(capacityWhere)
-      .all()
     if (cnt >= service.max_concurrent) {
       throw new BookingValidationError(
         'CAPACITY_EXCEEDED',
@@ -379,12 +390,10 @@ function isoWeekdayFromYmd(ymd: string): number {
   return dow === 0 ? 7 : dow
 }
 
-function isSqliteUniqueError(err: unknown): boolean {
-  return (
-    err instanceof Error &&
-    'code' in err &&
-    (err as { code: unknown }).code === 'SQLITE_CONSTRAINT_UNIQUE'
-  )
+function pgErrCode(e: unknown): string | undefined {
+  return e instanceof Error && 'code' in e
+    ? (e as { code?: string }).code
+    : undefined
 }
 
 // Crea reserva + booking_item dentro de una transacción única, replicando
@@ -400,19 +409,21 @@ export async function validateAndCreateBooking(
   const startsAt = new Date(input.startsAt)
 
   try {
-    const result = db.transaction((tx) => {
+    const result = await db.transaction(async (tx) => {
       // Necesitamos la duración del servicio antes de validar, así la
       // validación corre el ciclo completo de SELECTs sin race.
-      const svc = tx
-        .select({ duration_minutes: services.duration_minutes })
-        .from(services)
-        .where(
-          and(
-            eq(services.id, input.serviceId),
-            eq(services.salon_id, input.salonId),
-          ),
-        )
-        .get()
+      const svc = (
+        await tx
+          .select({ duration_minutes: services.duration_minutes })
+          .from(services)
+          .where(
+            and(
+              eq(services.id, input.serviceId),
+              eq(services.salon_id, input.salonId),
+            ),
+          )
+          .limit(1)
+      )[0]
       if (!svc) {
         throw new BookingValidationError(
           'SALON_MISMATCH',
@@ -423,7 +434,7 @@ export async function validateAndCreateBooking(
         startsAt.getTime() + svc.duration_minutes * 60_000,
       )
 
-      const { service } = validateBookingItemInterval(tx, {
+      const { service } = await validateBookingItemInterval(tx, {
         salonId: input.salonId,
         serviceId: input.serviceId,
         employeeId: input.employeeId,
@@ -433,7 +444,7 @@ export async function validateAndCreateBooking(
       })
 
       // INSERT bookings (status pending).
-      const insertedBookings = tx
+      const insertedBookings = await tx
         .insert(bookings)
         .values({
           salon_id: input.salonId,
@@ -446,41 +457,36 @@ export async function validateAndCreateBooking(
           idempotency_key: input.idempotencyKey ?? null,
         })
         .returning({ id: bookings.id, public_id: bookings.public_id })
-        .all()
       const booking = insertedBookings[0]
       if (!booking) throw new Error('No se pudo crear la reserva.')
 
       // INSERT booking_items (position 0).
-      tx.insert(booking_items)
-        .values({
-          booking_id: booking.id,
-          salon_id: input.salonId,
-          position: 0,
-          service_id: input.serviceId,
-          employee_id: input.employeeId,
-          starts_at: startsAt,
-          ends_at: endsAt,
-          service_snapshot: {
-            name: service.name,
-            duration_minutes: service.duration_minutes,
-            price_cents: service.price_cents,
-            color_hex: service.color_hex,
-          },
-          booking_status: 'pending',
-        })
-        .run()
+      await tx.insert(booking_items).values({
+        booking_id: booking.id,
+        salon_id: input.salonId,
+        position: 0,
+        service_id: input.serviceId,
+        employee_id: input.employeeId,
+        starts_at: startsAt,
+        ends_at: endsAt,
+        service_snapshot: {
+          name: service.name,
+          duration_minutes: service.duration_minutes,
+          price_cents: service.price_cents,
+          color_hex: service.color_hex,
+        },
+        booking_status: 'pending',
+      })
 
       // Replica de `bookings_log_status_event` en INSERT.
-      tx.insert(booking_status_events)
-        .values({
-          booking_id: booking.id,
-          salon_id: input.salonId,
-          from_status: null,
-          to_status: 'pending',
-          actor_type: 'system',
-          reason: null,
-        })
-        .run()
+      await tx.insert(booking_status_events).values({
+        booking_id: booking.id,
+        salon_id: input.salonId,
+        from_status: null,
+        to_status: 'pending',
+        actor_type: 'system',
+        reason: null,
+      })
 
       return { bookingId: booking.id, publicId: booking.public_id }
     })
@@ -490,14 +496,35 @@ export async function validateAndCreateBooking(
     if (e instanceof BookingValidationError) {
       return { ok: false, code: e.code, message: e.message }
     }
+    const code = pgErrCode(e)
+    // EXCLUDE GIST por empleado activo (concurrencia): el pre-check TS del
+    // paso 14 puede pasar y aun así chocar contra otra transacción concurrente.
+    if (code === '23P01') {
+      return {
+        ok: false,
+        code: 'EMPLOYEE_OVERLAP',
+        message: 'Ese empleado ya tiene una reserva en ese horario.',
+      }
+    }
+    // Trigger de capacidad concurrente del servicio (concurrencia): idem, el
+    // pre-check TS del paso 15 puede pasar y aun así chocar bajo carrera.
+    if (code === '23514') {
+      return {
+        ok: false,
+        code: 'CAPACITY_EXCEEDED',
+        message: 'No hay disponibilidad para ese servicio en ese horario.',
+      }
+    }
     // Idempotency replay: si el INSERT chocó con la UNIQUE de idempotency_key,
     // devolvemos la reserva original creada antes con la misma key.
-    if (isSqliteUniqueError(e) && input.idempotencyKey) {
-      const existing = db
-        .select({ id: bookings.id, public_id: bookings.public_id })
-        .from(bookings)
-        .where(eq(bookings.idempotency_key, input.idempotencyKey))
-        .get()
+    if (code === '23505' && input.idempotencyKey) {
+      const existing = (
+        await db
+          .select({ id: bookings.id, public_id: bookings.public_id })
+          .from(bookings)
+          .where(eq(bookings.idempotency_key, input.idempotencyKey))
+          .limit(1)
+      )[0]
       if (existing) {
         return {
           ok: true,

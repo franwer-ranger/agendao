@@ -112,33 +112,37 @@ export async function fetchAvailabilityData(args: {
   rangeEndUtc: Date
 }): Promise<AvailabilityRawData | null> {
   // Q1: salón
-  const salon = db
-    .select({
-      id: salons.id,
-      timezone: salons.timezone,
-      slot_granularity_minutes: salons.slot_granularity_minutes,
-      booking_min_hours_ahead: salons.booking_min_hours_ahead,
-      booking_max_days_ahead: salons.booking_max_days_ahead,
-    })
-    .from(salons)
-    .where(eq(salons.id, args.salonId))
-    .get()
+  const salon = (
+    await db
+      .select({
+        id: salons.id,
+        timezone: salons.timezone,
+        slot_granularity_minutes: salons.slot_granularity_minutes,
+        booking_min_hours_ahead: salons.booking_min_hours_ahead,
+        booking_max_days_ahead: salons.booking_max_days_ahead,
+      })
+      .from(salons)
+      .where(eq(salons.id, args.salonId))
+      .limit(1)
+  )[0]
   if (!salon) return null
 
   // Q2: servicio
-  const service = db
-    .select({
-      id: services.id,
-      salon_id: services.salon_id,
-      duration_minutes: services.duration_minutes,
-      max_concurrent: services.max_concurrent,
-      is_active: services.is_active,
-    })
-    .from(services)
-    .where(
-      and(eq(services.id, args.serviceId), eq(services.salon_id, args.salonId)),
-    )
-    .get()
+  const service = (
+    await db
+      .select({
+        id: services.id,
+        salon_id: services.salon_id,
+        duration_minutes: services.duration_minutes,
+        max_concurrent: services.max_concurrent,
+        is_active: services.is_active,
+      })
+      .from(services)
+      .where(
+        and(eq(services.id, args.serviceId), eq(services.salon_id, args.salonId)),
+      )
+      .limit(1)
+  )[0]
   if (!service || !service.is_active) return null
 
   // Q3: empleados activos del salón autorizados para el servicio.
@@ -155,7 +159,7 @@ export async function fetchAvailabilityData(args: {
           eq(employee_services.service_id, args.serviceId),
           eq(employees.id, args.employeeFilter),
         )
-  const employeeRows = db
+  const employeeRows = await db
     .select({
       id: employees.id,
       display_name: employees.display_name,
@@ -168,12 +172,11 @@ export async function fetchAvailabilityData(args: {
       eq(employee_services.employee_id, employees.id),
     )
     .where(empWhere)
-    .all()
 
   const employeeIds = employeeRows.map((e) => e.id)
 
   // Q6: working hours del salón (no depende de los empleados)
-  const workingHoursRows = db
+  const workingHoursRows = await db
     .select({
       weekday: salon_working_hours.weekday,
       opens_at: salon_working_hours.opens_at,
@@ -181,10 +184,9 @@ export async function fetchAvailabilityData(args: {
     })
     .from(salon_working_hours)
     .where(eq(salon_working_hours.salon_id, args.salonId))
-    .all()
 
   // Q8: closures del salón que solapan el rango
-  const closureRows = db
+  const closureRows = await db
     .select({
       starts_at: salon_closures.starts_at,
       ends_at: salon_closures.ends_at,
@@ -197,13 +199,12 @@ export async function fetchAvailabilityData(args: {
         gt(salon_closures.ends_at, args.rangeStartUtc),
       ),
     )
-    .all()
 
   // Q9: booking_items activos del salón en el rango.
   // Lo sigue cargando aunque no haya empleados elegibles, por consistencia
   // del shape devuelto. El engine también consulta capacidad concurrente
   // del servicio en su totalidad, no solo de los empleados del filtro.
-  const bookingItemRows = db
+  const bookingItemRows = await db
     .select({
       id: booking_items.id,
       employee_id: booking_items.employee_id,
@@ -220,7 +221,6 @@ export async function fetchAvailabilityData(args: {
         gt(booking_items.ends_at, args.rangeStartUtc),
       ),
     )
-    .all()
 
   // Si no hay empleados elegibles, los conjuntos dependientes son vacíos.
   if (employeeIds.length === 0) {
@@ -250,7 +250,7 @@ export async function fetchAvailabilityData(args: {
 
   // Q4: horario semanal de los empleados elegibles, válido en el rango.
   // effective_from <= to AND (effective_until IS NULL OR effective_until >= from)
-  const weeklyRows = db
+  const weeklyRows = await db
     .select({
       employee_id: employee_weekly_schedule.employee_id,
       weekday: employee_weekly_schedule.weekday,
@@ -270,10 +270,9 @@ export async function fetchAvailabilityData(args: {
         ),
       ),
     )
-    .all()
 
   // Q5: descansos recurrentes con el mismo criterio.
-  const breakRows = db
+  const breakRows = await db
     .select({
       employee_id: employee_recurring_breaks.employee_id,
       weekday: employee_recurring_breaks.weekday,
@@ -293,10 +292,9 @@ export async function fetchAvailabilityData(args: {
         ),
       ),
     )
-    .all()
 
   // Q7: time-off de los empleados que solapa el rango
-  const timeOffRows = db
+  const timeOffRows = await db
     .select({
       employee_id: employee_time_off.employee_id,
       starts_at: employee_time_off.starts_at,
@@ -310,7 +308,6 @@ export async function fetchAvailabilityData(args: {
         gt(employee_time_off.ends_at, args.rangeStartUtc),
       ),
     )
-    .all()
 
   return {
     salon,
