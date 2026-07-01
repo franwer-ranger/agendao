@@ -26,12 +26,11 @@ export async function updateBookingInternalNoteAction(input: {
   }
 
   try {
-    db.update(bookings)
+    await db.update(bookings)
       .set({ internal_note: trimmed === '' ? null : trimmed })
       .where(
         and(eq(bookings.id, input.bookingId), eq(bookings.salon_id, salon.id)),
       )
-      .run()
   } catch (e) {
     return { ok: false, message: (e as Error).message }
   }

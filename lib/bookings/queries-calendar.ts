@@ -54,7 +54,7 @@ export async function listBookingsInRange({
   rangeStartUtc: Date
   rangeEndUtc: Date
 }): Promise<CalendarBookingItem[]> {
-  const rows = db
+  const rows = await db
     .select({
       id: booking_items.id,
       booking_id: booking_items.booking_id,
@@ -84,7 +84,6 @@ export async function listBookingsInRange({
       ),
     )
     .orderBy(asc(booking_items.starts_at))
-    .all()
 
   return rows.map((r) => ({
     itemId: r.id,
@@ -119,7 +118,7 @@ export async function listBlocksInRange({
 }): Promise<CalendarBlock[]> {
   if (employeeIds.length === 0) return []
 
-  const rows = db
+  const rows = await db
     .select({
       id: employee_time_off.id,
       employee_id: employee_time_off.employee_id,
@@ -136,7 +135,6 @@ export async function listBlocksInRange({
         gt(employee_time_off.ends_at, rangeStartUtc),
       ),
     )
-    .all()
 
   const out: CalendarBlock[] = rows.map((r) => ({
     id: r.id,

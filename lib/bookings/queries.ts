@@ -26,35 +26,38 @@ export async function getPublicBookingByPublicId({
   salonId: number
   publicId: string
 }): Promise<PublicBookingSummary | null> {
-  const booking = db
-    .select({
-      id: bookings.id,
-      public_id: bookings.public_id,
-      starts_at: bookings.starts_at,
-      ends_at: bookings.ends_at,
-      status: bookings.status,
-      client_email: clients.email,
-    })
-    .from(bookings)
-    .innerJoin(clients, eq(clients.id, bookings.client_id))
-    .where(
-      and(eq(bookings.salon_id, salonId), eq(bookings.public_id, publicId)),
-    )
-    .get()
+  const booking = (
+    await db
+      .select({
+        id: bookings.id,
+        public_id: bookings.public_id,
+        starts_at: bookings.starts_at,
+        ends_at: bookings.ends_at,
+        status: bookings.status,
+        client_email: clients.email,
+      })
+      .from(bookings)
+      .innerJoin(clients, eq(clients.id, bookings.client_id))
+      .where(
+        and(eq(bookings.salon_id, salonId), eq(bookings.public_id, publicId)),
+      )
+      .limit(1)
+  )[0]
   if (!booking) return null
 
-  const item = db
-    .select({
-      position: booking_items.position,
-      service_snapshot: booking_items.service_snapshot,
-      employee_name: employees.display_name,
-    })
-    .from(booking_items)
-    .innerJoin(employees, eq(employees.id, booking_items.employee_id))
-    .where(eq(booking_items.booking_id, booking.id))
-    .orderBy(asc(booking_items.position))
-    .limit(1)
-    .get()
+  const item = (
+    await db
+      .select({
+        position: booking_items.position,
+        service_snapshot: booking_items.service_snapshot,
+        employee_name: employees.display_name,
+      })
+      .from(booking_items)
+      .innerJoin(employees, eq(employees.id, booking_items.employee_id))
+      .where(eq(booking_items.booking_id, booking.id))
+      .orderBy(asc(booking_items.position))
+      .limit(1)
+  )[0]
   if (!item) return null
 
   const snapshot = item.service_snapshot as {

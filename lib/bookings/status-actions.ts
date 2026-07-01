@@ -35,17 +35,19 @@ export async function setBookingStatusAction(input: {
   const salon = await getCurrentSalon()
 
   try {
-    const handled = db.transaction((tx) => {
-      const current = tx
-        .select({ id: bookings.id, status: bookings.status })
-        .from(bookings)
-        .where(
-          and(
-            eq(bookings.id, input.bookingId),
-            eq(bookings.salon_id, salon.id),
-          ),
-        )
-        .get()
+    const handled = await db.transaction(async (tx) => {
+      const current = (
+        await tx
+          .select({ id: bookings.id, status: bookings.status })
+          .from(bookings)
+          .where(
+            and(
+              eq(bookings.id, input.bookingId),
+              eq(bookings.salon_id, salon.id),
+            ),
+          )
+          .limit(1)
+      )[0]
       if (!current) {
         return { ok: false as const, message: 'Reserva no encontrada.' }
       }
@@ -75,7 +77,7 @@ export async function setBookingStatusAction(input: {
         patch.cancellation_reason = input.reason ?? null
       }
 
-      tx.update(bookings)
+      await tx.update(bookings)
         .set(patch)
         .where(
           and(
@@ -83,17 +85,15 @@ export async function setBookingStatusAction(input: {
             eq(bookings.salon_id, salon.id),
           ),
         )
-        .run()
 
       // Replica de `bookings_propagate_status_to_items`: cualquier
       // booking_item con booking_id = ? hereda el nuevo status.
-      tx.update(booking_items)
+      await tx.update(booking_items)
         .set({ booking_status: input.toStatus })
         .where(eq(booking_items.booking_id, input.bookingId))
-        .run()
 
       // Replica de `bookings_log_status_event`.
-      tx.insert(booking_status_events)
+      await tx.insert(booking_status_events)
         .values({
           booking_id: input.bookingId,
           salon_id: salon.id,
@@ -105,7 +105,6 @@ export async function setBookingStatusAction(input: {
               ? (input.reason ?? null)
               : null,
         })
-        .run()
 
       return { ok: true as const }
     })

@@ -45,7 +45,7 @@ export async function listTodaysBookings({
   rangeStartUtc: Date
   rangeEndUtc: Date
 }): Promise<TodayBookingItem[]> {
-  const rows = db
+  const rows = await db
     .select({
       id: booking_items.id,
       booking_id: booking_items.booking_id,
@@ -77,7 +77,6 @@ export async function listTodaysBookings({
       ),
     )
     .orderBy(asc(booking_items.starts_at))
-    .all()
 
   return rows.map((r) => ({
     itemId: r.id,
