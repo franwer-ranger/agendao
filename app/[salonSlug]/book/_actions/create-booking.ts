@@ -161,7 +161,7 @@ export async function createPublicBookingAction(
     // así el redirect al cliente no espera al envío.
     const createdBookingId = result.bookingId
     after(async () => {
-      await emitBookingCreatedEmails(createdBookingId)
+      await emitBookingCreatedEmails(createdBookingId, salon.id)
     })
     redirect(`/${salonSlug}/book/done/${result.publicId}`)
   }

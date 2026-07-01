@@ -98,7 +98,7 @@ export async function createBookingManualAction(
 
   if (input.notify_client && input.client_email) {
     after(async () => {
-      await emitBookingCreatedEmails(result.bookingId)
+      await emitBookingCreatedEmails(result.bookingId, salon.id)
     })
   }
 

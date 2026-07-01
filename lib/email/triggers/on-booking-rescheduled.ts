@@ -11,9 +11,10 @@ import { BookingRescheduleEmail } from '@/lib/email/templates/booking-reschedule
 export async function emitBookingRescheduledEmails(
   bookingId: number,
   previousStartsAt: string,
+  salonId: number,
 ): Promise<void> {
   try {
-    const ctx = await loadBookingEmailContext(bookingId)
+    const ctx = await loadBookingEmailContext(bookingId, salonId)
     if (!ctx) {
       console.error('[email:booking_reschedule] context not found', {
         bookingId,

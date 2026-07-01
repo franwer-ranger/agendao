@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { and, eq, gt, lt } from 'drizzle-orm'
 import { z } from 'zod'
 
-import { db } from '@/lib/db'
+import { withTenant } from '@/lib/db/tenant'
 import { employee_time_off, employees } from '@/lib/db/schema'
 import { getCurrentSalon } from '@/lib/salon'
 import { salonDateToUtc } from '@/lib/time'
@@ -67,7 +67,7 @@ export async function createBlockAction(
   )
 
   try {
-    const id = await db.transaction(async (tx) => {
+    const id = await withTenant(salon.id, async (tx) => {
       // Pertenencia al salón.
       const emp = (
         await tx
@@ -122,8 +122,25 @@ export async function createBlockAction(
     revalidatePath('/admin/calendar')
     return { ok: true, id }
   } catch (e) {
+    // Paridad con lib/availability/booking.ts: el EXCLUDE GIST de Postgres
+    // sobre employee_time_off puede disparar 23P01 bajo carrera concurrente
+    // pese al pre-check TS. Lo mapeamos al mismo mensaje amable.
+    if (isExclusionViolation(e)) {
+      return {
+        ok: false,
+        message: 'Ya existe un bloqueo que solapa con ese rango.',
+      }
+    }
     return { ok: false, message: (e as Error).message }
   }
+}
+
+function isExclusionViolation(e: unknown): boolean {
+  return (
+    e instanceof Error &&
+    'code' in e &&
+    (e as { code?: string }).code === '23P01'
+  )
 }
 
 function hhmmToMinutes(hhmm: string): number {

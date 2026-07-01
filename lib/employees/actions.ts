@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation'
 import { and, asc, eq, gt, inArray, isNull, lt } from 'drizzle-orm'
 
 import { db } from '@/lib/db'
+import { withTenant } from '@/lib/db/tenant'
 import {
   booking_items,
   bookings,
@@ -45,21 +46,30 @@ export type TimeOffActionState = ActionState & {
 }
 
 type TxDb = Parameters<Parameters<typeof db.transaction>[0]>[0]
-type TxLike = Pick<typeof db, 'select'>
 
 // ─── Helpers internos ──────────────────────────────────────────────────────
 
+// Bajo RLS `employees` está scoped por el GUC: sin tenant fijado devuelve 0
+// filas. Cuando se llama dentro de una tenant-tx se pasa `tx` (reutiliza GUC);
+// standalone se auto-envuelve en withTenant.
 async function assertEmployeeBelongsToSalon(
   employeeId: number,
   salonId: number,
-  txDb: TxLike = db,
+  tx?: TxDb,
 ): Promise<boolean> {
-  const hit = (await txDb
-    .select({ id: employees.id })
-    .from(employees)
-    .where(and(eq(employees.id, employeeId), eq(employees.salon_id, salonId)))
-    .limit(1))[0]
-  return Boolean(hit)
+  const run = async (t: TxDb) => {
+    const hit = (
+      await t
+        .select({ id: employees.id })
+        .from(employees)
+        .where(
+          and(eq(employees.id, employeeId), eq(employees.salon_id, salonId)),
+        )
+        .limit(1)
+    )[0]
+    return Boolean(hit)
+  }
+  return tx ? run(tx) : withTenant(salonId, run)
 }
 
 // Sincroniza la lista de servicios que el empleado puede realizar.
@@ -92,7 +102,8 @@ async function syncServiceAssignments(
   const toRemove = [...existingIds].filter((id) => !desiredSet.has(id))
 
   if (toRemove.length > 0) {
-    await tx.delete(employee_services)
+    await tx
+      .delete(employee_services)
       .where(
         and(
           eq(employee_services.employee_id, employeeId),
@@ -102,7 +113,8 @@ async function syncServiceAssignments(
   }
 
   if (toAdd.length > 0) {
-    await tx.insert(employee_services)
+    await tx
+      .insert(employee_services)
       .values(
         toAdd.map((service_id) => ({ employee_id: employeeId, service_id })),
       )
@@ -127,7 +139,7 @@ export async function createEmployeeAction(
 
   let createdId: number
   try {
-    createdId = await db.transaction(async (tx) => {
+    createdId = await withTenant(salon.id, async (tx) => {
       const slug = await resolveUniqueEmployeeSlug(
         salon.id,
         parsed.data.display_name,
@@ -149,7 +161,12 @@ export async function createEmployeeAction(
       const created = inserted[0]
       if (!created) throw new Error('No se pudo crear el empleado')
 
-      await syncServiceAssignments(created.id, salon.id, parsed.data.service_ids, tx)
+      await syncServiceAssignments(
+        created.id,
+        salon.id,
+        parsed.data.service_ids,
+        tx,
+      )
       return created.id
     })
   } catch (e) {
@@ -176,18 +193,20 @@ export async function updateEmployeeAction(
   const salon = await getCurrentSalon()
 
   try {
-    await db.transaction(async (tx) => {
-      const current = (await tx
-        .select({
-          id: employees.id,
-          display_name: employees.display_name,
-          slug: employees.slug,
-        })
-        .from(employees)
-        .where(
-          and(eq(employees.id, employeeId), eq(employees.salon_id, salon.id)),
-        )
-        .limit(1))[0]
+    await withTenant(salon.id, async (tx) => {
+      const current = (
+        await tx
+          .select({
+            id: employees.id,
+            display_name: employees.display_name,
+            slug: employees.slug,
+          })
+          .from(employees)
+          .where(
+            and(eq(employees.id, employeeId), eq(employees.salon_id, salon.id)),
+          )
+          .limit(1)
+      )[0]
       if (!current) throw new Error('Empleado no encontrado')
 
       const slug =
@@ -200,7 +219,8 @@ export async function updateEmployeeAction(
               tx,
             )
 
-      await tx.update(employees)
+      await tx
+        .update(employees)
         .set({
           display_name: parsed.data.display_name,
           slug,
@@ -213,7 +233,12 @@ export async function updateEmployeeAction(
           and(eq(employees.id, employeeId), eq(employees.salon_id, salon.id)),
         )
 
-      await syncServiceAssignments(employeeId, salon.id, parsed.data.service_ids, tx)
+      await syncServiceAssignments(
+        employeeId,
+        salon.id,
+        parsed.data.service_ids,
+        tx,
+      )
     })
   } catch (e) {
     return { ok: false, message: (e as Error).message }
@@ -235,9 +260,12 @@ export async function setEmployeeActiveAction(
 
   const salon = await getCurrentSalon()
 
-  await db.update(employees)
-    .set({ is_active: active })
-    .where(and(eq(employees.id, id), eq(employees.salon_id, salon.id)))
+  await withTenant(salon.id, async (tx) => {
+    await tx
+      .update(employees)
+      .set({ is_active: active })
+      .where(and(eq(employees.id, id), eq(employees.salon_id, salon.id)))
+  })
 
   revalidatePath('/admin/employees')
   revalidatePath(`/admin/employees/${id}/edit`)
@@ -261,14 +289,15 @@ export async function updateEmployeeWeeklyScheduleAction(
   const salon = await getCurrentSalon()
 
   try {
-    await db.transaction(async (tx) => {
+    await withTenant(salon.id, async (tx) => {
       if (!(await assertEmployeeBelongsToSalon(employeeId, salon.id, tx))) {
         throw new Error('Empleado no encontrado')
       }
 
       // Reemplazo total: borramos las filas "vivas" (effective_until is null)
       // y metemos las nuevas. No tocamos versiones históricas.
-      await tx.delete(employee_weekly_schedule)
+      await tx
+        .delete(employee_weekly_schedule)
         .where(
           and(
             eq(employee_weekly_schedule.employee_id, employeeId),
@@ -278,16 +307,15 @@ export async function updateEmployeeWeeklyScheduleAction(
 
       if (parsed.data.shifts.length > 0) {
         const today = salonToday()
-        await tx.insert(employee_weekly_schedule)
-          .values(
-            parsed.data.shifts.map((s) => ({
-              employee_id: employeeId,
-              weekday: s.weekday,
-              starts_at: s.starts_at,
-              ends_at: s.ends_at,
-              effective_from: today,
-            })),
-          )
+        await tx.insert(employee_weekly_schedule).values(
+          parsed.data.shifts.map((s) => ({
+            employee_id: employeeId,
+            weekday: s.weekday,
+            starts_at: s.starts_at,
+            ends_at: s.ends_at,
+            effective_from: today,
+          })),
+        )
       }
     })
   } catch (e) {
@@ -316,12 +344,13 @@ export async function updateEmployeeRecurringBreaksAction(
   const salon = await getCurrentSalon()
 
   try {
-    await db.transaction(async (tx) => {
+    await withTenant(salon.id, async (tx) => {
       if (!(await assertEmployeeBelongsToSalon(employeeId, salon.id, tx))) {
         throw new Error('Empleado no encontrado')
       }
 
-      await tx.delete(employee_recurring_breaks)
+      await tx
+        .delete(employee_recurring_breaks)
         .where(
           and(
             eq(employee_recurring_breaks.employee_id, employeeId),
@@ -331,17 +360,16 @@ export async function updateEmployeeRecurringBreaksAction(
 
       if (parsed.data.breaks.length > 0) {
         const today = salonToday()
-        await tx.insert(employee_recurring_breaks)
-          .values(
-            parsed.data.breaks.map((b) => ({
-              employee_id: employeeId,
-              weekday: b.weekday,
-              starts_at: b.starts_at,
-              ends_at: b.ends_at,
-              label: b.label,
-              effective_from: today,
-            })),
-          )
+        await tx.insert(employee_recurring_breaks).values(
+          parsed.data.breaks.map((b) => ({
+            employee_id: employeeId,
+            weekday: b.weekday,
+            starts_at: b.starts_at,
+            ends_at: b.ends_at,
+            label: b.label,
+            effective_from: today,
+          })),
+        )
       }
     })
   } catch (e) {
@@ -392,39 +420,56 @@ export async function createEmployeeTimeOffAction(
   }
 
   try {
-    await db.transaction(async (tx) => {
+    await withTenant(salon.id, async (tx) => {
       // Replica del EXCLUDE GIST de Postgres: rechazar si solapa con otro
       // time-off del mismo empleado. Half-open: start < otherEnd AND end > otherStart.
-      const overlap = (await tx
-        .select({ id: employee_time_off.id })
-        .from(employee_time_off)
-        .where(
-          and(
-            eq(employee_time_off.employee_id, employeeId),
-            lt(employee_time_off.starts_at, endUtc),
-            gt(employee_time_off.ends_at, startUtc),
-          ),
-        )
-        .limit(1))[0]
+      const overlap = (
+        await tx
+          .select({ id: employee_time_off.id })
+          .from(employee_time_off)
+          .where(
+            and(
+              eq(employee_time_off.employee_id, employeeId),
+              lt(employee_time_off.starts_at, endUtc),
+              gt(employee_time_off.ends_at, startUtc),
+            ),
+          )
+          .limit(1)
+      )[0]
       if (overlap) {
         throw new Error('Ya existe un bloqueo que solapa con ese rango.')
       }
 
-      await tx.insert(employee_time_off)
-        .values({
-          employee_id: employeeId,
-          starts_at: startUtc,
-          ends_at: endUtc,
-          reason: parsed.data.reason,
-          note: parsed.data.note,
-        })
+      await tx.insert(employee_time_off).values({
+        employee_id: employeeId,
+        starts_at: startUtc,
+        ends_at: endUtc,
+        reason: parsed.data.reason,
+        note: parsed.data.note,
+      })
     })
   } catch (e) {
+    // Paridad con lib/availability/booking.ts: el EXCLUDE GIST sobre
+    // employee_time_off puede disparar 23P01 bajo carrera pese al pre-check TS.
+    if (isExclusionViolation(e)) {
+      return {
+        ok: false,
+        message: 'Ya existe un bloqueo que solapa con ese rango.',
+      }
+    }
     return { ok: false, message: (e as Error).message }
   }
 
   revalidatePath(`/admin/employees/${employeeId}/edit`)
   return { ok: true }
+}
+
+function isExclusionViolation(e: unknown): boolean {
+  return (
+    e instanceof Error &&
+    'code' in e &&
+    (e as { code?: string }).code === '23P01'
+  )
 }
 
 export async function deleteEmployeeTimeOffAction(
@@ -441,13 +486,16 @@ export async function deleteEmployeeTimeOffAction(
 
   if (!(await assertEmployeeBelongsToSalon(employeeId, salon.id))) return
 
-  await db.delete(employee_time_off)
-    .where(
-      and(
-        eq(employee_time_off.id, id),
-        eq(employee_time_off.employee_id, employeeId),
-      ),
-    )
+  await withTenant(salon.id, async (tx) => {
+    await tx
+      .delete(employee_time_off)
+      .where(
+        and(
+          eq(employee_time_off.id, id),
+          eq(employee_time_off.employee_id, employeeId),
+        ),
+      )
+  })
 
   revalidatePath(`/admin/employees/${employeeId}/edit`)
 }
@@ -460,33 +508,36 @@ async function findBookingConflicts(
   start: Date,
   end: Date,
 ): Promise<ConflictingBooking[]> {
-  // Solapan ⇔ item.starts_at < end AND item.ends_at > start
-  const rows = await db
-    .select({
-      booking_id: booking_items.booking_id,
-      starts_at: booking_items.starts_at,
-      ends_at: booking_items.ends_at,
-      service_name: services.name,
-      client_name: clients.display_name,
-    })
-    .from(booking_items)
-    .innerJoin(bookings, eq(booking_items.booking_id, bookings.id))
-    .innerJoin(clients, eq(bookings.client_id, clients.id))
-    .innerJoin(services, eq(booking_items.service_id, services.id))
-    .where(
-      and(
-        eq(booking_items.employee_id, employeeId),
-        eq(booking_items.salon_id, salonId),
-        inArray(booking_items.booking_status, [
-          'pending',
-          'confirmed',
-          'in_progress',
-        ]),
-        lt(booking_items.starts_at, end),
-        gt(booking_items.ends_at, start),
-      ),
-    )
-    .orderBy(asc(booking_items.starts_at))
+  // Solapan ⇔ item.starts_at < end AND item.ends_at > start.
+  // booking_items/bookings/clients/services están scoped por RLS → self-wrap.
+  const rows = await withTenant(salonId, async (t) =>
+    t
+      .select({
+        booking_id: booking_items.booking_id,
+        starts_at: booking_items.starts_at,
+        ends_at: booking_items.ends_at,
+        service_name: services.name,
+        client_name: clients.display_name,
+      })
+      .from(booking_items)
+      .innerJoin(bookings, eq(booking_items.booking_id, bookings.id))
+      .innerJoin(clients, eq(bookings.client_id, clients.id))
+      .innerJoin(services, eq(booking_items.service_id, services.id))
+      .where(
+        and(
+          eq(booking_items.employee_id, employeeId),
+          eq(booking_items.salon_id, salonId),
+          inArray(booking_items.booking_status, [
+            'pending',
+            'confirmed',
+            'in_progress',
+          ]),
+          lt(booking_items.starts_at, end),
+          gt(booking_items.ends_at, start),
+        ),
+      )
+      .orderBy(asc(booking_items.starts_at)),
+  )
 
   return rows.map((r) => ({
     booking_id: r.booking_id,

@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation'
 import { and, eq, inArray } from 'drizzle-orm'
 
 import { db } from '@/lib/db'
+import { withTenant } from '@/lib/db/tenant'
 import { employee_services, employees, services } from '@/lib/db/schema'
 import { getCurrentSalon } from '@/lib/salon'
 import { parseServiceFormData } from '@/lib/services/schema'
@@ -50,7 +51,8 @@ async function syncEmployeeAssignments(
   const toRemove = [...existingIds].filter((id) => !desiredSet.has(id))
 
   if (toRemove.length > 0) {
-    await tx.delete(employee_services)
+    await tx
+      .delete(employee_services)
       .where(
         and(
           eq(employee_services.service_id, serviceId),
@@ -60,7 +62,8 @@ async function syncEmployeeAssignments(
   }
 
   if (toAdd.length > 0) {
-    await tx.insert(employee_services)
+    await tx
+      .insert(employee_services)
       .values(
         toAdd.map((employee_id) => ({ employee_id, service_id: serviceId })),
       )
@@ -82,7 +85,7 @@ export async function createServiceAction(
   const salon = await getCurrentSalon()
 
   try {
-    await db.transaction(async (tx) => {
+    await withTenant(salon.id, async (tx) => {
       const slug = await resolveUniqueServiceSlug(
         salon.id,
         parsed.data.name,
@@ -136,7 +139,7 @@ export async function updateServiceAction(
   const salon = await getCurrentSalon()
 
   try {
-    await db.transaction(async (tx) => {
+    await withTenant(salon.id, async (tx) => {
       const current = (
         await tx
           .select({
@@ -145,7 +148,9 @@ export async function updateServiceAction(
             slug: services.slug,
           })
           .from(services)
-          .where(and(eq(services.id, serviceId), eq(services.salon_id, salon.id)))
+          .where(
+            and(eq(services.id, serviceId), eq(services.salon_id, salon.id)),
+          )
           .limit(1)
       )[0]
       if (!current) throw new Error('Servicio no encontrado')
@@ -153,9 +158,15 @@ export async function updateServiceAction(
       const slug =
         current.name === parsed.data.name
           ? current.slug
-          : await resolveUniqueServiceSlug(salon.id, parsed.data.name, serviceId, tx)
+          : await resolveUniqueServiceSlug(
+              salon.id,
+              parsed.data.name,
+              serviceId,
+              tx,
+            )
 
-      await tx.update(services)
+      await tx
+        .update(services)
         .set({
           name: parsed.data.name,
           slug,
@@ -167,7 +178,12 @@ export async function updateServiceAction(
         })
         .where(and(eq(services.id, serviceId), eq(services.salon_id, salon.id)))
 
-      await syncEmployeeAssignments(serviceId, salon.id, parsed.data.employee_ids, tx)
+      await syncEmployeeAssignments(
+        serviceId,
+        salon.id,
+        parsed.data.employee_ids,
+        tx,
+      )
     })
   } catch (e) {
     return { ok: false, message: (e as Error).message }
@@ -188,9 +204,12 @@ export async function setServiceActiveAction(
 
   const salon = await getCurrentSalon()
 
-  await db.update(services)
-    .set({ is_active: active })
-    .where(and(eq(services.id, id), eq(services.salon_id, salon.id)))
+  await withTenant(salon.id, async (tx) => {
+    await tx
+      .update(services)
+      .set({ is_active: active })
+      .where(and(eq(services.id, id), eq(services.salon_id, salon.id)))
+  })
 
   revalidatePath('/admin/services')
 }

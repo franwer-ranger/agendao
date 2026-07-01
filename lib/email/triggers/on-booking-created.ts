@@ -15,9 +15,10 @@ import { SalonNewBookingEmail } from '@/lib/email/templates/salon-new-booking'
 // fallos con tag y la idempotencia la garantiza `booking_notifications`.
 export async function emitBookingCreatedEmails(
   bookingId: number,
+  salonId: number,
 ): Promise<void> {
   try {
-    const ctx = await loadBookingEmailContext(bookingId)
+    const ctx = await loadBookingEmailContext(bookingId, salonId)
     if (!ctx) {
       console.error('[email:booking_created] context not found', { bookingId })
       return

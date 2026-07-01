@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { and, eq, gt, lt } from 'drizzle-orm'
 
 import { db } from '@/lib/db'
+import { withTenant } from '@/lib/db/tenant'
 import { salon_closures, salon_working_hours, salons } from '@/lib/db/schema'
 import { getCurrentSalon } from '@/lib/salon'
 import {
@@ -43,11 +44,13 @@ export async function updateIdentityAction(
   const salon = await getCurrentSalon()
 
   // Estado actual para saber el logo_path previo (lo borraremos si procede).
-  const current = (await db
-    .select({ logo_path: salons.logo_path })
-    .from(salons)
-    .where(eq(salons.id, salon.id))
-    .limit(1))[0]
+  const current = (
+    await db
+      .select({ logo_path: salons.logo_path })
+      .from(salons)
+      .where(eq(salons.id, salon.id))
+      .limit(1)
+  )[0]
   const previousLogoPath = current?.logo_path ?? null
 
   // Logo nuevo (si lo hay). Sigue usando Supabase Storage en M2; se reemplaza en M3.
@@ -68,15 +71,18 @@ export async function updateIdentityAction(
   }
 
   try {
-    await db.update(salons)
-      .set({
-        name: parsed.data.name,
-        address: parsed.data.address,
-        phone: parsed.data.phone,
-        contact_email: parsed.data.contact_email,
-        logo_path: nextLogoPath,
-      })
-      .where(eq(salons.id, salon.id))
+    await withTenant(salon.id, async (tx) => {
+      await tx
+        .update(salons)
+        .set({
+          name: parsed.data.name,
+          address: parsed.data.address,
+          phone: parsed.data.phone,
+          contact_email: parsed.data.contact_email,
+          logo_path: nextLogoPath,
+        })
+        .where(eq(salons.id, salon.id))
+    })
   } catch (e) {
     return { ok: false, message: (e as Error).message }
   }
@@ -122,8 +128,9 @@ export async function replaceWorkingHoursAction(
     }))
 
   try {
-    await db.transaction(async (tx) => {
-      await tx.delete(salon_working_hours)
+    await withTenant(salon.id, async (tx) => {
+      await tx
+        .delete(salon_working_hours)
         .where(eq(salon_working_hours.salon_id, salon.id))
       if (rows.length > 0) {
         await tx.insert(salon_working_hours).values(rows)
@@ -158,39 +165,53 @@ export async function createSalonClosureAction(
   const endUtc = salonDateToUtc(addDaysIsoLocal(parsed.data.ends_on, 1))
 
   try {
-    await db.transaction(async (tx) => {
+    await withTenant(salon.id, async (tx) => {
       // Replica del EXCLUDE GIST de Postgres: rechazar si solapa con otro cierre
       // del mismo salón. Overlap half-open: start < otherEnd AND end > otherStart.
-      const overlap = (await tx
-        .select({ id: salon_closures.id })
-        .from(salon_closures)
-        .where(
-          and(
-            eq(salon_closures.salon_id, salon.id),
-            lt(salon_closures.starts_at, endUtc),
-            gt(salon_closures.ends_at, startUtc),
-          ),
-        )
-        .limit(1))[0]
+      const overlap = (
+        await tx
+          .select({ id: salon_closures.id })
+          .from(salon_closures)
+          .where(
+            and(
+              eq(salon_closures.salon_id, salon.id),
+              lt(salon_closures.starts_at, endUtc),
+              gt(salon_closures.ends_at, startUtc),
+            ),
+          )
+          .limit(1)
+      )[0]
 
       if (overlap) {
         throw new Error('Se solapa con otro cierre ya configurado.')
       }
 
-      await tx.insert(salon_closures)
-        .values({
-          salon_id: salon.id,
-          starts_at: startUtc,
-          ends_at: endUtc,
-          label: parsed.data.label,
-        })
+      await tx.insert(salon_closures).values({
+        salon_id: salon.id,
+        starts_at: startUtc,
+        ends_at: endUtc,
+        label: parsed.data.label,
+      })
     })
   } catch (e) {
+    // Paridad con lib/availability/booking.ts: el EXCLUDE GIST sobre
+    // salon_closures puede disparar 23P01 bajo carrera pese al pre-check TS.
+    if (isExclusionViolation(e)) {
+      return { ok: false, message: 'Se solapa con otro cierre ya configurado.' }
+    }
     return { ok: false, message: (e as Error).message }
   }
 
   revalidatePath(REVALIDATE_PATH)
   return { ok: true }
+}
+
+function isExclusionViolation(e: unknown): boolean {
+  return (
+    e instanceof Error &&
+    'code' in e &&
+    (e as { code?: string }).code === '23P01'
+  )
 }
 
 export async function deleteSalonClosureAction(
@@ -202,10 +223,13 @@ export async function deleteSalonClosureAction(
 
   const salon = await getCurrentSalon()
 
-  await db.delete(salon_closures)
-    .where(
-      and(eq(salon_closures.id, id), eq(salon_closures.salon_id, salon.id)),
-    )
+  await withTenant(salon.id, async (tx) => {
+    await tx
+      .delete(salon_closures)
+      .where(
+        and(eq(salon_closures.id, id), eq(salon_closures.salon_id, salon.id)),
+      )
+  })
 
   revalidatePath(REVALIDATE_PATH)
 }
@@ -227,13 +251,16 @@ export async function updateBookingsAction(
   const salon = await getCurrentSalon()
 
   try {
-    await db.update(salons)
-      .set({
-        slot_granularity_minutes: parsed.data.slot_granularity_minutes,
-        booking_min_hours_ahead: parsed.data.booking_min_hours_ahead,
-        booking_max_days_ahead: parsed.data.booking_max_days_ahead,
-      })
-      .where(eq(salons.id, salon.id))
+    await withTenant(salon.id, async (tx) => {
+      await tx
+        .update(salons)
+        .set({
+          slot_granularity_minutes: parsed.data.slot_granularity_minutes,
+          booking_min_hours_ahead: parsed.data.booking_min_hours_ahead,
+          booking_max_days_ahead: parsed.data.booking_max_days_ahead,
+        })
+        .where(eq(salons.id, salon.id))
+    })
   } catch (e) {
     return { ok: false, message: (e as Error).message }
   }
@@ -259,12 +286,15 @@ export async function updateCancellationAction(
   const salon = await getCurrentSalon()
 
   try {
-    await db.update(salons)
-      .set({
-        cancellation_min_hours: parsed.data.cancellation_min_hours,
-        cancellation_policy_text: parsed.data.cancellation_policy_text,
-      })
-      .where(eq(salons.id, salon.id))
+    await withTenant(salon.id, async (tx) => {
+      await tx
+        .update(salons)
+        .set({
+          cancellation_min_hours: parsed.data.cancellation_min_hours,
+          cancellation_policy_text: parsed.data.cancellation_policy_text,
+        })
+        .where(eq(salons.id, salon.id))
+    })
   } catch (e) {
     return { ok: false, message: (e as Error).message }
   }
@@ -290,9 +320,12 @@ export async function updateLegalAction(
   const salon = await getCurrentSalon()
 
   try {
-    await db.update(salons)
-      .set({ terms_text: parsed.data.terms_text })
-      .where(eq(salons.id, salon.id))
+    await withTenant(salon.id, async (tx) => {
+      await tx
+        .update(salons)
+        .set({ terms_text: parsed.data.terms_text })
+        .where(eq(salons.id, salon.id))
+    })
   } catch (e) {
     return { ok: false, message: (e as Error).message }
   }

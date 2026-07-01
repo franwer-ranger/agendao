@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { after } from 'next/server'
 import { and, eq, max, min } from 'drizzle-orm'
 
-import { db } from '@/lib/db'
+import { withTenant } from '@/lib/db/tenant'
 import { booking_items, bookings } from '@/lib/db/schema'
 import {
   BookingValidationError,
@@ -41,7 +41,7 @@ export async function moveBookingAction(input: {
   let newStartsIso: string
 
   try {
-    const out = await db.transaction(async (tx) => {
+    const out = await withTenant(salon.id, async (tx) => {
       const item = (
         await tx
           .select({
@@ -131,7 +131,11 @@ export async function moveBookingAction(input: {
 
   if (input.notifyClient) {
     after(async () => {
-      await emitBookingRescheduledEmails(input.bookingId, previousStartsAt!)
+      await emitBookingRescheduledEmails(
+        input.bookingId,
+        previousStartsAt!,
+        salon.id,
+      )
     })
   }
 

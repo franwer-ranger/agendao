@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { and, eq } from 'drizzle-orm'
 
-import { db } from '@/lib/db'
+import { withTenant } from '@/lib/db/tenant'
 import { bookings } from '@/lib/db/schema'
 import { getCurrentSalon } from '@/lib/salon'
 
@@ -26,11 +26,17 @@ export async function updateBookingInternalNoteAction(input: {
   }
 
   try {
-    await db.update(bookings)
-      .set({ internal_note: trimmed === '' ? null : trimmed })
-      .where(
-        and(eq(bookings.id, input.bookingId), eq(bookings.salon_id, salon.id)),
-      )
+    await withTenant(salon.id, async (tx) => {
+      await tx
+        .update(bookings)
+        .set({ internal_note: trimmed === '' ? null : trimmed })
+        .where(
+          and(
+            eq(bookings.id, input.bookingId),
+            eq(bookings.salon_id, salon.id),
+          ),
+        )
+    })
   } catch (e) {
     return { ok: false, message: (e as Error).message }
   }

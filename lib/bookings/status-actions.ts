@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { and, eq } from 'drizzle-orm'
 
-import { db } from '@/lib/db'
+import { withTenant } from '@/lib/db/tenant'
 import { booking_items, booking_status_events, bookings } from '@/lib/db/schema'
 import type { BookingStatus } from '@/lib/bookings/status'
 import { getCurrentSalon } from '@/lib/salon'
@@ -35,7 +35,7 @@ export async function setBookingStatusAction(input: {
   const salon = await getCurrentSalon()
 
   try {
-    const handled = await db.transaction(async (tx) => {
+    const handled = await withTenant(salon.id, async (tx) => {
       const current = (
         await tx
           .select({ id: bookings.id, status: bookings.status })
@@ -77,7 +77,8 @@ export async function setBookingStatusAction(input: {
         patch.cancellation_reason = input.reason ?? null
       }
 
-      await tx.update(bookings)
+      await tx
+        .update(bookings)
         .set(patch)
         .where(
           and(
@@ -88,23 +89,21 @@ export async function setBookingStatusAction(input: {
 
       // Replica de `bookings_propagate_status_to_items`: cualquier
       // booking_item con booking_id = ? hereda el nuevo status.
-      await tx.update(booking_items)
+      await tx
+        .update(booking_items)
         .set({ booking_status: input.toStatus })
         .where(eq(booking_items.booking_id, input.bookingId))
 
       // Replica de `bookings_log_status_event`.
-      await tx.insert(booking_status_events)
-        .values({
-          booking_id: input.bookingId,
-          salon_id: salon.id,
-          from_status: from,
-          to_status: input.toStatus,
-          actor_type: 'system',
-          reason:
-            input.toStatus === 'cancelled_salon'
-              ? (input.reason ?? null)
-              : null,
-        })
+      await tx.insert(booking_status_events).values({
+        booking_id: input.bookingId,
+        salon_id: salon.id,
+        from_status: from,
+        to_status: input.toStatus,
+        actor_type: 'system',
+        reason:
+          input.toStatus === 'cancelled_salon' ? (input.reason ?? null) : null,
+      })
 
       return { ok: true as const }
     })
