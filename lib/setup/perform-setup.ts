@@ -15,6 +15,7 @@ import {
 import { resolveUniqueEmployeeSlug } from '@/lib/employees/slug'
 import { uploadSalonLogo } from '@/lib/salons/storage'
 import { resolveUniqueServiceSlug } from '@/lib/services/slug'
+import { salonToday } from '@/lib/time'
 
 import {
   invalidateConfiguredCache,
@@ -50,20 +51,22 @@ export async function performSetup(
   }
   const payload = parsed.data
 
-  const slugCollision = db
-    .select({ id: salons.id })
-    .from(salons)
-    .where(eq(salons.slug, payload.salon.slug))
-    .get()
+  const slugCollision = (
+    await db
+      .select({ id: salons.id })
+      .from(salons)
+      .where(eq(salons.slug, payload.salon.slug))
+      .limit(1)
+  )[0]
   if (slugCollision) {
     throw new Error('Ese identificador de salón ya está en uso.')
   }
 
-  // argon2 es async; no puede ir dentro de la tx síncrona de better-sqlite3.
+  // argon2 es async y costoso; se calcula fuera de la tx para no alargarla.
   const passwordHash = await hashPassword(payload.admin.password)
 
-  const result = db.transaction((tx) => {
-    const insertedSalon = tx
+  const result = await db.transaction(async (tx) => {
+    const insertedSalon = await tx
       .insert(salons)
       .values({
         slug: payload.salon.slug,
@@ -78,7 +81,6 @@ export async function performSetup(
         terms_text: payload.salon.legal.terms_text,
       })
       .returning({ id: salons.id })
-      .all()
     const salonRow = insertedSalon[0]
     if (!salonRow) throw new Error('No se pudo crear el salón')
     const salonId = salonRow.id
@@ -92,28 +94,31 @@ export async function performSetup(
         closes_at: d.closes_at as string,
       }))
     if (hoursRows.length > 0) {
-      tx.insert(salon_working_hours).values(hoursRows).run()
+      await tx.insert(salon_working_hours).values(hoursRows)
     }
 
     // app_users.salon_id es NOT NULL → este orden (salón antes que usuario)
     // es obligatorio; el prompt original asumía UPDATE posterior y no funcionaría.
     const adminId = randomUUID()
-    tx.insert(app_users)
-      .values({
-        id: adminId,
-        salon_id: salonId,
-        role: 'admin',
-        email: payload.admin.email,
-        password_hash: passwordHash,
-        display_name: payload.admin.display_name,
-        is_active: true,
-      })
-      .run()
+    await tx.insert(app_users).values({
+      id: adminId,
+      salon_id: salonId,
+      role: 'admin',
+      email: payload.admin.email,
+      password_hash: passwordHash,
+      display_name: payload.admin.display_name,
+      is_active: true,
+    })
 
     const serviceIds: number[] = []
     for (const svc of payload.services) {
-      const slug = resolveUniqueServiceSlug(salonId, svc.name, undefined, tx)
-      const inserted = tx
+      const slug = await resolveUniqueServiceSlug(
+        salonId,
+        svc.name,
+        undefined,
+        tx,
+      )
+      const inserted = await tx
         .insert(services)
         .values({
           salon_id: salonId,
@@ -124,20 +129,19 @@ export async function performSetup(
           is_active: true,
         })
         .returning({ id: services.id })
-        .all()
       if (!inserted[0]) throw new Error('No se pudo crear el servicio')
       serviceIds.push(inserted[0].id)
     }
 
     const employeeIds: number[] = []
     for (const emp of payload.employees) {
-      const slug = resolveUniqueEmployeeSlug(
+      const slug = await resolveUniqueEmployeeSlug(
         salonId,
         emp.display_name,
         undefined,
         tx,
       )
-      const inserted = tx
+      const inserted = await tx
         .insert(employees)
         .values({
           salon_id: salonId,
@@ -147,22 +151,23 @@ export async function performSetup(
           is_active: true,
         })
         .returning({ id: employees.id })
-        .all()
       if (!inserted[0]) throw new Error('No se pudo crear el empleado')
       const employeeId = inserted[0].id
       employeeIds.push(employeeId)
 
       if (emp.weeklySchedule.length > 0) {
-        tx.insert(employee_weekly_schedule)
-          .values(
-            emp.weeklySchedule.map((s) => ({
-              employee_id: employeeId,
-              weekday: s.weekday,
-              starts_at: s.starts_at,
-              ends_at: s.ends_at,
-            })),
-          )
-          .run()
+        // effective_from es NOT NULL sin default (schema Postgres); mismo
+        // patrón que lib/employees/actions.ts (Task 10).
+        const today = salonToday()
+        await tx.insert(employee_weekly_schedule).values(
+          emp.weeklySchedule.map((s) => ({
+            employee_id: employeeId,
+            weekday: s.weekday,
+            starts_at: s.starts_at,
+            ends_at: s.ends_at,
+            effective_from: today,
+          })),
+        )
       }
     }
 
@@ -178,7 +183,7 @@ export async function performSetup(
       links.push({ service_id: sid, employee_id: eid })
     }
     if (links.length > 0) {
-      tx.insert(employee_services).values(links).run()
+      await tx.insert(employee_services).values(links)
     }
 
     return { salonId, salonSlug: payload.salon.slug, adminId }
@@ -189,10 +194,10 @@ export async function performSetup(
   if (logoFile && logoFile.size > 0) {
     try {
       const logoPath = await uploadSalonLogo(result.salonId, logoFile)
-      db.update(salons)
+      await db
+        .update(salons)
         .set({ logo_path: logoPath })
         .where(eq(salons.id, result.salonId))
-        .run()
     } catch (err) {
       console.warn('[setup] no se pudo subir el logo:', err)
     }

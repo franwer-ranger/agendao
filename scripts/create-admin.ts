@@ -1,8 +1,8 @@
-import Database from 'better-sqlite3'
 import argon2 from 'argon2'
-import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { eq } from 'drizzle-orm'
+import { drizzle } from 'drizzle-orm/node-postgres'
 import { randomUUID } from 'node:crypto'
+import { Pool } from 'pg'
 
 import * as schema from '../lib/db/schema'
 
@@ -35,25 +35,26 @@ async function main(): Promise<void> {
     die('La contraseña debe tener al menos 8 caracteres.', 2)
   }
 
-  const url = process.env.DATABASE_URL ?? './data/dev.db'
-  const sqlite = new Database(url)
-  sqlite.pragma('foreign_keys = ON')
-  const db = drizzle(sqlite, { schema })
+  const connectionString = process.env.DATABASE_URL
+  if (!connectionString) die('DATABASE_URL no está definida.', 1)
+  const pool = new Pool({ connectionString })
+  const db = drizzle(pool, { schema })
 
   try {
     let salon: { id: number; slug: string } | undefined
     if (slugArg) {
-      salon = db
-        .select({ id: schema.salons.id, slug: schema.salons.slug })
-        .from(schema.salons)
-        .where(eq(schema.salons.slug, slugArg))
-        .get()
+      salon = (
+        await db
+          .select({ id: schema.salons.id, slug: schema.salons.slug })
+          .from(schema.salons)
+          .where(eq(schema.salons.slug, slugArg))
+          .limit(1)
+      )[0]
       if (!salon) die(`Salón "${slugArg}" no encontrado.`, 3)
     } else {
-      const all = db
+      const all = await db
         .select({ id: schema.salons.id, slug: schema.salons.slug })
         .from(schema.salons)
-        .all()
       if (all.length === 0) {
         die(
           'No hay salones en la DB. Ejecuta primero `npm run db:migrate && npm run db:seed`.',
@@ -66,33 +67,33 @@ async function main(): Promise<void> {
       salon = all[0]
     }
 
-    const exists = db
-      .select({ id: schema.app_users.id })
-      .from(schema.app_users)
-      .where(eq(schema.app_users.email, email))
-      .get()
+    const exists = (
+      await db
+        .select({ id: schema.app_users.id })
+        .from(schema.app_users)
+        .where(eq(schema.app_users.email, email))
+        .limit(1)
+    )[0]
     if (exists) die(`Ya existe un usuario con email ${email}.`, 4)
 
     const hash = await argon2.hash(password, ARGON_OPTIONS)
     const id = randomUUID()
 
-    db.insert(schema.app_users)
-      .values({
-        id,
-        salon_id: salon!.id,
-        role: 'admin',
-        email,
-        password_hash: hash,
-        display_name: email.split('@')[0]!,
-        is_active: true,
-      })
-      .run()
+    await db.insert(schema.app_users).values({
+      id,
+      salon_id: salon!.id,
+      role: 'admin',
+      email,
+      password_hash: hash,
+      display_name: email.split('@')[0]!,
+      is_active: true,
+    })
 
     process.stdout.write(
       `Admin creado:\n  id=${id}\n  email=${email}\n  salon=${salon!.slug}\n`,
     )
   } finally {
-    sqlite.close()
+    await pool.end()
   }
 }
 

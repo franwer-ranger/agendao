@@ -14,7 +14,7 @@ let configuredCache: boolean | null = null
 
 async function check(): Promise<boolean> {
   if (configuredCache === true) return true
-  const row = db.select({ id: salons.id }).from(salons).limit(1).get()
+  const row = (await db.select({ id: salons.id }).from(salons).limit(1))[0]
   const result = row !== undefined
   if (result) configuredCache = true
   return result

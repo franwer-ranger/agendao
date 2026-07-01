@@ -1,12 +1,12 @@
-import Database from 'better-sqlite3'
 import { formatInTimeZone, fromZonedTime } from 'date-fns-tz'
-import { drizzle } from 'drizzle-orm/better-sqlite3'
+import { drizzle } from 'drizzle-orm/node-postgres'
+import { Pool } from 'pg'
 import * as schema from '../lib/db/schema'
 
-const url = process.env.DATABASE_URL ?? './data/dev.db'
-const sqlite = new Database(url)
-sqlite.pragma('foreign_keys = ON')
-const db = drizzle(sqlite, { schema })
+const connectionString = process.env.DATABASE_URL
+if (!connectionString) throw new Error('DATABASE_URL no está definida')
+const pool = new Pool({ connectionString })
+const db = drizzle(pool, { schema })
 
 const TZ = 'Europe/Madrid'
 
@@ -248,7 +248,9 @@ async function clean(): Promise<void> {
   await db.delete(schema.services)
   await db.delete(schema.app_users)
   await db.delete(schema.salons)
-  sqlite.exec("DELETE FROM sqlite_sequence WHERE name NOT LIKE '__drizzle%'")
+  // Postgres no necesita reset de secuencia tras el DELETE (a diferencia de
+  // sqlite_sequence): las columnas IDENTITY siguen contando; los IDs no son
+  // datos de negocio.
 }
 
 async function main(): Promise<void> {
@@ -488,7 +490,7 @@ async function main(): Promise<void> {
 
   process.stdout.write(
     [
-      `Seed completado contra ${url}`,
+      'Seed completado',
       `  Salón: ${SALON.name}`,
       `  Servicios: ${SERVICES.length}`,
       `  Empleados: ${EMPLOYEES.length}`,
@@ -501,9 +503,9 @@ async function main(): Promise<void> {
 }
 
 main()
-  .then(() => sqlite.close())
-  .catch((err) => {
-    sqlite.close()
+  .then(() => pool.end())
+  .catch(async (err) => {
+    await pool.end()
     process.stderr.write(`Seed falló: ${err?.message ?? err}\n`)
     process.exit(1)
   })
