@@ -2,8 +2,11 @@ import 'server-only'
 import { eq } from 'drizzle-orm'
 
 import { db } from '@/lib/db'
+import { withTenant } from '@/lib/db/tenant'
 import { booking_notifications } from '@/lib/db/schema'
 import type { EmailKind } from './types'
+
+type TxDb = Parameters<Parameters<typeof db.transaction>[0]>[0]
 
 function isPostgresUniqueError(err: unknown): boolean {
   return (
@@ -20,14 +23,17 @@ function isPostgresUniqueError(err: unknown): boolean {
 // `version` se usa solo para `booking_reschedule` (cada reprogramación es un
 // evento nuevo). El resto de tipos lo deja en 0 y la unique key actúa como
 // `(booking_id, kind)`.
-export async function reserveNotificationSlot(params: {
-  bookingId: number
-  salonId: number
-  kind: EmailKind
-  version?: number
-}): Promise<{ reserved: boolean; rowId: number | null }> {
-  try {
-    const inserted = await db
+export async function reserveNotificationSlot(
+  params: {
+    bookingId: number
+    salonId: number
+    kind: EmailKind
+    version?: number
+  },
+  tx?: TxDb,
+): Promise<{ reserved: boolean; rowId: number | null }> {
+  const run = async (t: TxDb) => {
+    const inserted = await t
       .insert(booking_notifications)
       .values({
         booking_id: params.bookingId,
@@ -38,6 +44,9 @@ export async function reserveNotificationSlot(params: {
       .returning({ id: booking_notifications.id })
     const row = inserted[0]
     return { reserved: true, rowId: row?.id ?? null }
+  }
+  try {
+    return await (tx ? run(tx) : withTenant(params.salonId, run))
   } catch (err) {
     // UNIQUE violation → otra petición ya reservó este slot.
     if (isPostgresUniqueError(err)) return { reserved: false, rowId: null }
@@ -52,15 +61,31 @@ export async function reserveNotificationSlot(params: {
 export async function recordProviderMessageId(
   rowId: number,
   providerMessageId: string,
+  salonId: number,
+  tx?: TxDb,
 ): Promise<void> {
-  await db.update(booking_notifications)
-    .set({ provider_message_id: providerMessageId })
-    .where(eq(booking_notifications.id, rowId))
+  const run = async (t: TxDb) => {
+    await t
+      .update(booking_notifications)
+      .set({ provider_message_id: providerMessageId })
+      .where(eq(booking_notifications.id, rowId))
+  }
+  if (tx) await run(tx)
+  else await withTenant(salonId, run)
 }
 
 // Si reservamos pero el envío falla, soltamos la fila para permitir reintentos
 // manuales/futuros. No queremos dejar "fantasmas" que bloqueen reintentos.
-export async function releaseNotificationSlot(rowId: number): Promise<void> {
-  await db.delete(booking_notifications)
-    .where(eq(booking_notifications.id, rowId))
+export async function releaseNotificationSlot(
+  rowId: number,
+  salonId: number,
+  tx?: TxDb,
+): Promise<void> {
+  const run = async (t: TxDb) => {
+    await t
+      .delete(booking_notifications)
+      .where(eq(booking_notifications.id, rowId))
+  }
+  if (tx) await run(tx)
+  else await withTenant(salonId, run)
 }

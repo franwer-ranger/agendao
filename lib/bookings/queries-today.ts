@@ -1,6 +1,7 @@
 import { and, asc, eq, gt, lt } from 'drizzle-orm'
 
 import { db } from '@/lib/db'
+import { withTenant } from '@/lib/db/tenant'
 import {
   booking_items,
   bookings,
@@ -9,6 +10,8 @@ import {
   services,
 } from '@/lib/db/schema'
 import type { BookingStatus } from '@/lib/bookings/status'
+
+type TxDb = Parameters<Parameters<typeof db.transaction>[0]>[0]
 
 // Card del panel "Hoy". Una `booking_items` (position 0 o encadenadas) se
 // renderiza como una tarjeta en la lista cronológica. Si una reserva tiene
@@ -36,47 +39,53 @@ export type TodayBookingItem = {
 // Devuelve los items que solapan con `[rangeStartUtc, rangeEndUtc)`,
 // ordenados cronológicamente. Incluye estados terminales para que la UI
 // pueda enseñar el día completo con un toggle "ver todas".
-export async function listTodaysBookings({
-  salonId,
-  rangeStartUtc,
-  rangeEndUtc,
-}: {
-  salonId: number
-  rangeStartUtc: Date
-  rangeEndUtc: Date
-}): Promise<TodayBookingItem[]> {
-  const rows = await db
-    .select({
-      id: booking_items.id,
-      booking_id: booking_items.booking_id,
-      position: booking_items.position,
-      employee_id: booking_items.employee_id,
-      starts_at: booking_items.starts_at,
-      ends_at: booking_items.ends_at,
-      booking_status: booking_items.booking_status,
-      service_name: services.name,
-      employee_name: employees.display_name,
-      employee_color_hex: employees.color_hex,
-      public_id: bookings.public_id,
-      internal_note: bookings.internal_note,
-      client_id: clients.id,
-      client_name: clients.display_name,
-      client_phone: clients.phone,
-      client_email: clients.email,
-    })
-    .from(booking_items)
-    .innerJoin(services, eq(services.id, booking_items.service_id))
-    .innerJoin(employees, eq(employees.id, booking_items.employee_id))
-    .innerJoin(bookings, eq(bookings.id, booking_items.booking_id))
-    .innerJoin(clients, eq(clients.id, bookings.client_id))
-    .where(
-      and(
-        eq(booking_items.salon_id, salonId),
-        lt(booking_items.starts_at, rangeEndUtc),
-        gt(booking_items.ends_at, rangeStartUtc),
-      ),
-    )
-    .orderBy(asc(booking_items.starts_at))
+export async function listTodaysBookings(
+  {
+    salonId,
+    rangeStartUtc,
+    rangeEndUtc,
+  }: {
+    salonId: number
+    rangeStartUtc: Date
+    rangeEndUtc: Date
+  },
+  tx?: TxDb,
+): Promise<TodayBookingItem[]> {
+  const run = (t: TxDb) =>
+    t
+      .select({
+        id: booking_items.id,
+        booking_id: booking_items.booking_id,
+        position: booking_items.position,
+        employee_id: booking_items.employee_id,
+        starts_at: booking_items.starts_at,
+        ends_at: booking_items.ends_at,
+        booking_status: booking_items.booking_status,
+        service_name: services.name,
+        employee_name: employees.display_name,
+        employee_color_hex: employees.color_hex,
+        public_id: bookings.public_id,
+        internal_note: bookings.internal_note,
+        client_id: clients.id,
+        client_name: clients.display_name,
+        client_phone: clients.phone,
+        client_email: clients.email,
+      })
+      .from(booking_items)
+      .innerJoin(services, eq(services.id, booking_items.service_id))
+      .innerJoin(employees, eq(employees.id, booking_items.employee_id))
+      .innerJoin(bookings, eq(bookings.id, booking_items.booking_id))
+      .innerJoin(clients, eq(clients.id, bookings.client_id))
+      .where(
+        and(
+          eq(booking_items.salon_id, salonId),
+          lt(booking_items.starts_at, rangeEndUtc),
+          gt(booking_items.ends_at, rangeStartUtc),
+        ),
+      )
+      .orderBy(asc(booking_items.starts_at))
+
+  const rows = await (tx ? run(tx) : withTenant(salonId, run))
 
   return rows.map((r) => ({
     itemId: r.id,

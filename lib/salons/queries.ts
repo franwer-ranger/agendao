@@ -2,8 +2,11 @@ import { cache } from 'react'
 import { and, asc, desc, eq, gte } from 'drizzle-orm'
 
 import { db } from '@/lib/db'
+import { withTenant } from '@/lib/db/tenant'
 import { salon_closures, salon_working_hours, salons } from '@/lib/db/schema'
 import { getPublicUrl } from '@/lib/storage'
+
+type TxDb = Parameters<Parameters<typeof db.transaction>[0]>[0]
 
 export type SalonSettings = {
   id: number
@@ -57,40 +60,55 @@ const SALON_SETTINGS_COLUMNS = {
 // Resolución del salón por slug para el flujo público (URL /[salonSlug]/book/...).
 // Envuelto con React `cache()` para que múltiples páginas/components de la misma
 // request reusen el resultado sin refetch.
+//
+// NO se envuelve en withTenant: es el resolver que precede a fijar el tenant y
+// la policy `salons_select` es pública (`using (true)`), así que lee sin GUC.
 export const getSalonBySlug = cache(
   async (slug: string): Promise<SalonSettings | null> => {
-    const row = (await db
-      .select(SALON_SETTINGS_COLUMNS)
-      .from(salons)
-      .where(eq(salons.slug, slug))
-      .limit(1))[0]
+    const row = (
+      await db
+        .select(SALON_SETTINGS_COLUMNS)
+        .from(salons)
+        .where(eq(salons.slug, slug))
+        .limit(1)
+    )[0]
     return row ?? null
   },
 )
 
 export async function getSalonSettings(
   salonId: number,
+  tx?: TxDb,
 ): Promise<SalonSettings | null> {
-  const row = (await db
-    .select(SALON_SETTINGS_COLUMNS)
-    .from(salons)
-    .where(eq(salons.id, salonId))
-    .limit(1))[0]
-  return row ?? null
+  const run = async (t: TxDb) => {
+    const row = (
+      await t
+        .select(SALON_SETTINGS_COLUMNS)
+        .from(salons)
+        .where(eq(salons.id, salonId))
+        .limit(1)
+    )[0]
+    return row ?? null
+  }
+  return tx ? run(tx) : withTenant(salonId, run)
 }
 
 export async function getSalonWorkingHours(
   salonId: number,
+  tx?: TxDb,
 ): Promise<SalonWorkingDay[]> {
-  const rows = await db
-    .select({
-      weekday: salon_working_hours.weekday,
-      opens_at: salon_working_hours.opens_at,
-      closes_at: salon_working_hours.closes_at,
-    })
-    .from(salon_working_hours)
-    .where(eq(salon_working_hours.salon_id, salonId))
-    .orderBy(asc(salon_working_hours.weekday))
+  const run = (t: TxDb) =>
+    t
+      .select({
+        weekday: salon_working_hours.weekday,
+        opens_at: salon_working_hours.opens_at,
+        closes_at: salon_working_hours.closes_at,
+      })
+      .from(salon_working_hours)
+      .where(eq(salon_working_hours.salon_id, salonId))
+      .orderBy(asc(salon_working_hours.weekday))
+
+  const rows = await (tx ? run(tx) : withTenant(salonId, run))
 
   return rows.map((r) => ({
     weekday: r.weekday,
@@ -104,6 +122,7 @@ export async function getSalonWorkingHours(
 export async function getSalonClosures(
   salonId: number,
   opts?: { includePast?: boolean },
+  tx?: TxDb,
 ): Promise<SalonClosure[]> {
   const where = opts?.includePast
     ? eq(salon_closures.salon_id, salonId)
@@ -112,16 +131,19 @@ export async function getSalonClosures(
         gte(salon_closures.ends_at, new Date()),
       )
 
-  const rows = await db
-    .select({
-      id: salon_closures.id,
-      starts_at: salon_closures.starts_at,
-      ends_at: salon_closures.ends_at,
-      label: salon_closures.label,
-    })
-    .from(salon_closures)
-    .where(where)
-    .orderBy(desc(salon_closures.id))
+  const run = (t: TxDb) =>
+    t
+      .select({
+        id: salon_closures.id,
+        starts_at: salon_closures.starts_at,
+        ends_at: salon_closures.ends_at,
+        label: salon_closures.label,
+      })
+      .from(salon_closures)
+      .where(where)
+      .orderBy(desc(salon_closures.id))
+
+  const rows = await (tx ? run(tx) : withTenant(salonId, run))
 
   const out = rows.map((r) => ({
     id: r.id,

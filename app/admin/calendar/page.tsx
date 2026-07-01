@@ -60,6 +60,7 @@ export default async function CalendarPage({
 
   const activeEmployees = employees.filter((e) => e.is_active)
   const blocks = await listBlocksInRange({
+    salonId: salon.id,
     employeeIds: activeEmployees.map((e) => e.id),
     rangeStartUtc,
     rangeEndUtc,

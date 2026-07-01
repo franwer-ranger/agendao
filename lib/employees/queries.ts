@@ -12,6 +12,7 @@ import {
 } from 'drizzle-orm'
 
 import { db } from '@/lib/db'
+import { withTenant } from '@/lib/db/tenant'
 import {
   employee_recurring_breaks,
   employee_services,
@@ -20,6 +21,8 @@ import {
   employees,
   services,
 } from '@/lib/db/schema'
+
+type TxDb = Parameters<Parameters<typeof db.transaction>[0]>[0]
 
 // ─── Tipos ─────────────────────────────────────────────────────────────────
 
@@ -79,24 +82,34 @@ export type ServiceOption = {
   is_active: boolean
 }
 
-export async function getPublicEmployeeName({
-  salonId,
-  employeeId,
-}: {
-  salonId: number
-  employeeId: number
-}): Promise<string | null> {
-  const row = (await db
-    .select({
-      display_name: employees.display_name,
-      is_active: employees.is_active,
-    })
-    .from(employees)
-    .where(and(eq(employees.id, employeeId), eq(employees.salon_id, salonId)))
-    .limit(1))[0]
+export async function getPublicEmployeeName(
+  {
+    salonId,
+    employeeId,
+  }: {
+    salonId: number
+    employeeId: number
+  },
+  tx?: TxDb,
+): Promise<string | null> {
+  const run = async (t: TxDb) => {
+    const row = (
+      await t
+        .select({
+          display_name: employees.display_name,
+          is_active: employees.is_active,
+        })
+        .from(employees)
+        .where(
+          and(eq(employees.id, employeeId), eq(employees.salon_id, salonId)),
+        )
+        .limit(1)
+    )[0]
 
-  if (!row || !row.is_active) return null
-  return row.display_name
+    if (!row || !row.is_active) return null
+    return row.display_name
+  }
+  return tx ? run(tx) : withTenant(salonId, run)
 }
 
 export type PublicEmployeeRow = {
@@ -108,43 +121,51 @@ export type PublicEmployeeRow = {
 // Empleados visibles en el paso 2 del flujo público de reserva: activos y
 // autorizados para el servicio elegido. Ordenados por display_order y nombre,
 // como el listing admin, para que la fila "más arriba" sea consistente.
-export async function listPublicEmployeesForService({
-  salonId,
-  serviceId,
-}: {
-  salonId: number
-  serviceId: number
-}): Promise<PublicEmployeeRow[]> {
-  return await db
-    .select({
-      id: employees.id,
-      display_name: employees.display_name,
-      bio: employees.bio,
-    })
-    .from(employees)
-    .innerJoin(
-      employee_services,
-      eq(employee_services.employee_id, employees.id),
-    )
-    .where(
-      and(
-        eq(employees.salon_id, salonId),
-        eq(employees.is_active, true),
-        eq(employee_services.service_id, serviceId),
-      ),
-    )
-    .orderBy(asc(employees.display_order), asc(employees.display_name))
+export async function listPublicEmployeesForService(
+  {
+    salonId,
+    serviceId,
+  }: {
+    salonId: number
+    serviceId: number
+  },
+  tx?: TxDb,
+): Promise<PublicEmployeeRow[]> {
+  const run = (t: TxDb) =>
+    t
+      .select({
+        id: employees.id,
+        display_name: employees.display_name,
+        bio: employees.bio,
+      })
+      .from(employees)
+      .innerJoin(
+        employee_services,
+        eq(employee_services.employee_id, employees.id),
+      )
+      .where(
+        and(
+          eq(employees.salon_id, salonId),
+          eq(employees.is_active, true),
+          eq(employee_services.service_id, serviceId),
+        ),
+      )
+      .orderBy(asc(employees.display_order), asc(employees.display_name))
+  return tx ? run(tx) : withTenant(salonId, run)
 }
 
 // ─── Listado ───────────────────────────────────────────────────────────────
 
-export async function listEmployees({
-  salonId,
-  q,
-}: {
-  salonId: number
-  q?: string
-}): Promise<EmployeeListRow[]> {
+export async function listEmployees(
+  {
+    salonId,
+    q,
+  }: {
+    salonId: number
+    q?: string
+  },
+  tx?: TxDb,
+): Promise<EmployeeListRow[]> {
   const trimmed = q?.trim()
   const where =
     trimmed && trimmed.length > 0
@@ -157,44 +178,47 @@ export async function listEmployees({
         )
       : eq(employees.salon_id, salonId)
 
-  const rows = await db
-    .select({
-      id: employees.id,
-      display_name: employees.display_name,
-      is_active: employees.is_active,
-      display_order: employees.display_order,
-      color_hex: employees.color_hex,
-    })
-    .from(employees)
-    .where(where)
-    .orderBy(
-      desc(employees.is_active),
-      asc(employees.display_order),
-      asc(employees.display_name),
-    )
+  const run = async (t: TxDb) => {
+    const rows = await t
+      .select({
+        id: employees.id,
+        display_name: employees.display_name,
+        is_active: employees.is_active,
+        display_order: employees.display_order,
+        color_hex: employees.color_hex,
+      })
+      .from(employees)
+      .where(where)
+      .orderBy(
+        desc(employees.is_active),
+        asc(employees.display_order),
+        asc(employees.display_name),
+      )
 
-  if (rows.length === 0) return []
+    if (rows.length === 0) return []
 
-  const counts = await db
-    .select({
-      employee_id: employee_services.employee_id,
-      c: count(),
-    })
-    .from(employee_services)
-    .where(
-      inArray(
-        employee_services.employee_id,
-        rows.map((r) => r.id),
-      ),
-    )
-    .groupBy(employee_services.employee_id)
+    const counts = await t
+      .select({
+        employee_id: employee_services.employee_id,
+        c: count(),
+      })
+      .from(employee_services)
+      .where(
+        inArray(
+          employee_services.employee_id,
+          rows.map((r) => r.id),
+        ),
+      )
+      .groupBy(employee_services.employee_id)
 
-  const countBy = new Map(counts.map((r) => [r.employee_id, r.c]))
+    const countBy = new Map(counts.map((r) => [r.employee_id, r.c]))
 
-  return rows.map((r) => ({
-    ...r,
-    service_count: countBy.get(r.id) ?? 0,
-  }))
+    return rows.map((r) => ({
+      ...r,
+      service_count: countBy.get(r.id) ?? 0,
+    }))
+  }
+  return tx ? run(tx) : withTenant(salonId, run)
 }
 
 // ─── Ficha ─────────────────────────────────────────────────────────────────
@@ -202,57 +226,68 @@ export async function listEmployees({
 export async function getEmployeeById(
   id: number,
   salonId: number,
+  tx?: TxDb,
 ): Promise<EmployeeDetail | null> {
-  const row = (await db
-    .select({
-      id: employees.id,
-      salon_id: employees.salon_id,
-      display_name: employees.display_name,
-      bio: employees.bio,
-      is_active: employees.is_active,
-      display_order: employees.display_order,
-      color_hex: employees.color_hex,
-    })
-    .from(employees)
-    .where(and(eq(employees.id, id), eq(employees.salon_id, salonId)))
-    .limit(1))[0]
+  const run = async (t: TxDb) => {
+    const row = (
+      await t
+        .select({
+          id: employees.id,
+          salon_id: employees.salon_id,
+          display_name: employees.display_name,
+          bio: employees.bio,
+          is_active: employees.is_active,
+          display_order: employees.display_order,
+          color_hex: employees.color_hex,
+        })
+        .from(employees)
+        .where(and(eq(employees.id, id), eq(employees.salon_id, salonId)))
+        .limit(1)
+    )[0]
 
-  if (!row) return null
+    if (!row) return null
 
-  const svcRows = await db
-    .select({ service_id: employee_services.service_id })
-    .from(employee_services)
-    .where(eq(employee_services.employee_id, id))
+    const svcRows = await t
+      .select({ service_id: employee_services.service_id })
+      .from(employee_services)
+      .where(eq(employee_services.employee_id, id))
 
-  return {
-    ...row,
-    service_ids: svcRows.map((r) => r.service_id),
+    return {
+      ...row,
+      service_ids: svcRows.map((r) => r.service_id),
+    }
   }
+  return tx ? run(tx) : withTenant(salonId, run)
 }
 
 // ─── Horario semanal (filas vivas: effective_until is null) ────────────────
 
 export async function getWeeklySchedule(
   employeeId: number,
+  salonId: number,
+  tx?: TxDb,
 ): Promise<WeeklyShift[]> {
-  const rows = await db
-    .select({
-      id: employee_weekly_schedule.id,
-      weekday: employee_weekly_schedule.weekday,
-      starts_at: employee_weekly_schedule.starts_at,
-      ends_at: employee_weekly_schedule.ends_at,
-    })
-    .from(employee_weekly_schedule)
-    .where(
-      and(
-        eq(employee_weekly_schedule.employee_id, employeeId),
-        isNull(employee_weekly_schedule.effective_until),
-      ),
-    )
-    .orderBy(
-      asc(employee_weekly_schedule.weekday),
-      asc(employee_weekly_schedule.starts_at),
-    )
+  const run = (t: TxDb) =>
+    t
+      .select({
+        id: employee_weekly_schedule.id,
+        weekday: employee_weekly_schedule.weekday,
+        starts_at: employee_weekly_schedule.starts_at,
+        ends_at: employee_weekly_schedule.ends_at,
+      })
+      .from(employee_weekly_schedule)
+      .where(
+        and(
+          eq(employee_weekly_schedule.employee_id, employeeId),
+          isNull(employee_weekly_schedule.effective_until),
+        ),
+      )
+      .orderBy(
+        asc(employee_weekly_schedule.weekday),
+        asc(employee_weekly_schedule.starts_at),
+      )
+
+  const rows = await (tx ? run(tx) : withTenant(salonId, run))
 
   return rows.map((r) => ({
     id: r.id,
@@ -268,26 +303,31 @@ export async function getWeeklySchedule(
 
 export async function getRecurringBreaks(
   employeeId: number,
+  salonId: number,
+  tx?: TxDb,
 ): Promise<RecurringBreak[]> {
-  const rows = await db
-    .select({
-      id: employee_recurring_breaks.id,
-      weekday: employee_recurring_breaks.weekday,
-      starts_at: employee_recurring_breaks.starts_at,
-      ends_at: employee_recurring_breaks.ends_at,
-      label: employee_recurring_breaks.label,
-    })
-    .from(employee_recurring_breaks)
-    .where(
-      and(
-        eq(employee_recurring_breaks.employee_id, employeeId),
-        isNull(employee_recurring_breaks.effective_until),
-      ),
-    )
-    .orderBy(
-      asc(employee_recurring_breaks.weekday),
-      asc(employee_recurring_breaks.starts_at),
-    )
+  const run = (t: TxDb) =>
+    t
+      .select({
+        id: employee_recurring_breaks.id,
+        weekday: employee_recurring_breaks.weekday,
+        starts_at: employee_recurring_breaks.starts_at,
+        ends_at: employee_recurring_breaks.ends_at,
+        label: employee_recurring_breaks.label,
+      })
+      .from(employee_recurring_breaks)
+      .where(
+        and(
+          eq(employee_recurring_breaks.employee_id, employeeId),
+          isNull(employee_recurring_breaks.effective_until),
+        ),
+      )
+      .orderBy(
+        asc(employee_recurring_breaks.weekday),
+        asc(employee_recurring_breaks.starts_at),
+      )
+
+  const rows = await (tx ? run(tx) : withTenant(salonId, run))
 
   return rows.map((r) => ({
     id: r.id,
@@ -302,7 +342,9 @@ export async function getRecurringBreaks(
 
 export async function getTimeOff(
   employeeId: number,
+  salonId: number,
   opts?: { includePast?: boolean },
+  tx?: TxDb,
 ): Promise<TimeOffEntry[]> {
   const where = opts?.includePast
     ? eq(employee_time_off.employee_id, employeeId)
@@ -311,17 +353,20 @@ export async function getTimeOff(
         gte(employee_time_off.ends_at, new Date()),
       )
 
-  const rows = await db
-    .select({
-      id: employee_time_off.id,
-      starts_at: employee_time_off.starts_at,
-      ends_at: employee_time_off.ends_at,
-      reason: employee_time_off.reason,
-      note: employee_time_off.note,
-    })
-    .from(employee_time_off)
-    .where(where)
-    .orderBy(desc(employee_time_off.id))
+  const run = (t: TxDb) =>
+    t
+      .select({
+        id: employee_time_off.id,
+        starts_at: employee_time_off.starts_at,
+        ends_at: employee_time_off.ends_at,
+        reason: employee_time_off.reason,
+        note: employee_time_off.note,
+      })
+      .from(employee_time_off)
+      .where(where)
+      .orderBy(desc(employee_time_off.id))
+
+  const rows = await (tx ? run(tx) : withTenant(salonId, run))
 
   const out: TimeOffEntry[] = rows.map((r) => ({
     id: r.id,
@@ -338,14 +383,17 @@ export async function getTimeOff(
 
 export async function listServicesForSalon(
   salonId: number,
+  tx?: TxDb,
 ): Promise<ServiceOption[]> {
-  return await db
-    .select({
-      id: services.id,
-      name: services.name,
-      is_active: services.is_active,
-    })
-    .from(services)
-    .where(eq(services.salon_id, salonId))
-    .orderBy(asc(services.display_order), asc(services.name))
+  const run = (t: TxDb) =>
+    t
+      .select({
+        id: services.id,
+        name: services.name,
+        is_active: services.is_active,
+      })
+      .from(services)
+      .where(eq(services.salon_id, salonId))
+      .orderBy(asc(services.display_order), asc(services.name))
+  return tx ? run(tx) : withTenant(salonId, run)
 }

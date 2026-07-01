@@ -71,18 +71,19 @@ export async function sendBookingEmail(
     })
 
     if (error) {
-      if (reservedRowId !== null) await releaseNotificationSlot(reservedRowId)
+      if (reservedRowId !== null)
+        await releaseNotificationSlot(reservedRowId, params.salonId)
       return { ok: false, error: error.message }
     }
 
     if (data?.id && reservedRowId !== null) {
-      await recordProviderMessageId(reservedRowId, data.id)
+      await recordProviderMessageId(reservedRowId, data.id, params.salonId)
     }
     return { ok: true, messageId: data?.id ?? '' }
   } catch (err) {
     if (reservedRowId !== null) {
       try {
-        await releaseNotificationSlot(reservedRowId)
+        await releaseNotificationSlot(reservedRowId, params.salonId)
       } catch {
         // Si ni siquiera podemos liberar, no hay mucho que hacer.
       }

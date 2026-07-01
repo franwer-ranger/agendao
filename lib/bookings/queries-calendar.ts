@@ -1,6 +1,7 @@
 import { and, asc, eq, gt, inArray, lt } from 'drizzle-orm'
 
 import { db } from '@/lib/db'
+import { withTenant } from '@/lib/db/tenant'
 import {
   booking_items,
   bookings,
@@ -9,6 +10,8 @@ import {
   services,
 } from '@/lib/db/schema'
 import type { BookingStatus } from '@/lib/bookings/status'
+
+type TxDb = Parameters<Parameters<typeof db.transaction>[0]>[0]
 
 // Una "tarjeta" en el calendario corresponde a un `booking_items.position = 0`
 // con los datos enriquecidos para pintar. Si una reserva tiene varios items
@@ -45,45 +48,51 @@ export type CalendarBlock = {
 // históricos) cuya ventana solape `[rangeStartUtc, rangeEndUtc)`. Incluimos
 // los estados terminales (completed / cancelled_* / no_show) para poder
 // enseñar el histórico del día — la UI los pinta atenuados.
-export async function listBookingsInRange({
-  salonId,
-  rangeStartUtc,
-  rangeEndUtc,
-}: {
-  salonId: number
-  rangeStartUtc: Date
-  rangeEndUtc: Date
-}): Promise<CalendarBookingItem[]> {
-  const rows = await db
-    .select({
-      id: booking_items.id,
-      booking_id: booking_items.booking_id,
-      position: booking_items.position,
-      employee_id: booking_items.employee_id,
-      service_id: booking_items.service_id,
-      starts_at: booking_items.starts_at,
-      ends_at: booking_items.ends_at,
-      booking_status: booking_items.booking_status,
-      service_name: services.name,
-      public_id: bookings.public_id,
-      internal_note: bookings.internal_note,
-      client_id: clients.id,
-      client_name: clients.display_name,
-      client_phone: clients.phone,
-      client_email: clients.email,
-    })
-    .from(booking_items)
-    .innerJoin(services, eq(services.id, booking_items.service_id))
-    .innerJoin(bookings, eq(bookings.id, booking_items.booking_id))
-    .innerJoin(clients, eq(clients.id, bookings.client_id))
-    .where(
-      and(
-        eq(booking_items.salon_id, salonId),
-        lt(booking_items.starts_at, rangeEndUtc),
-        gt(booking_items.ends_at, rangeStartUtc),
-      ),
-    )
-    .orderBy(asc(booking_items.starts_at))
+export async function listBookingsInRange(
+  {
+    salonId,
+    rangeStartUtc,
+    rangeEndUtc,
+  }: {
+    salonId: number
+    rangeStartUtc: Date
+    rangeEndUtc: Date
+  },
+  tx?: TxDb,
+): Promise<CalendarBookingItem[]> {
+  const run = (t: TxDb) =>
+    t
+      .select({
+        id: booking_items.id,
+        booking_id: booking_items.booking_id,
+        position: booking_items.position,
+        employee_id: booking_items.employee_id,
+        service_id: booking_items.service_id,
+        starts_at: booking_items.starts_at,
+        ends_at: booking_items.ends_at,
+        booking_status: booking_items.booking_status,
+        service_name: services.name,
+        public_id: bookings.public_id,
+        internal_note: bookings.internal_note,
+        client_id: clients.id,
+        client_name: clients.display_name,
+        client_phone: clients.phone,
+        client_email: clients.email,
+      })
+      .from(booking_items)
+      .innerJoin(services, eq(services.id, booking_items.service_id))
+      .innerJoin(bookings, eq(bookings.id, booking_items.booking_id))
+      .innerJoin(clients, eq(clients.id, bookings.client_id))
+      .where(
+        and(
+          eq(booking_items.salon_id, salonId),
+          lt(booking_items.starts_at, rangeEndUtc),
+          gt(booking_items.ends_at, rangeStartUtc),
+        ),
+      )
+      .orderBy(asc(booking_items.starts_at))
+
+  const rows = await (tx ? run(tx) : withTenant(salonId, run))
 
   return rows.map((r) => ({
     itemId: r.id,
@@ -107,34 +116,42 @@ export async function listBookingsInRange({
 // Bloqueos = `employee_time_off` que solape la ventana. Sirve tanto para
 // vacaciones largas como para los huecos puntuales que admin crea desde el
 // calendario (Bloque 6 los reusa: ver plan).
-export async function listBlocksInRange({
-  employeeIds,
-  rangeStartUtc,
-  rangeEndUtc,
-}: {
-  employeeIds: number[]
-  rangeStartUtc: Date
-  rangeEndUtc: Date
-}): Promise<CalendarBlock[]> {
+export async function listBlocksInRange(
+  {
+    salonId,
+    employeeIds,
+    rangeStartUtc,
+    rangeEndUtc,
+  }: {
+    salonId: number
+    employeeIds: number[]
+    rangeStartUtc: Date
+    rangeEndUtc: Date
+  },
+  tx?: TxDb,
+): Promise<CalendarBlock[]> {
   if (employeeIds.length === 0) return []
 
-  const rows = await db
-    .select({
-      id: employee_time_off.id,
-      employee_id: employee_time_off.employee_id,
-      starts_at: employee_time_off.starts_at,
-      ends_at: employee_time_off.ends_at,
-      reason: employee_time_off.reason,
-      note: employee_time_off.note,
-    })
-    .from(employee_time_off)
-    .where(
-      and(
-        inArray(employee_time_off.employee_id, employeeIds),
-        lt(employee_time_off.starts_at, rangeEndUtc),
-        gt(employee_time_off.ends_at, rangeStartUtc),
-      ),
-    )
+  const run = (t: TxDb) =>
+    t
+      .select({
+        id: employee_time_off.id,
+        employee_id: employee_time_off.employee_id,
+        starts_at: employee_time_off.starts_at,
+        ends_at: employee_time_off.ends_at,
+        reason: employee_time_off.reason,
+        note: employee_time_off.note,
+      })
+      .from(employee_time_off)
+      .where(
+        and(
+          inArray(employee_time_off.employee_id, employeeIds),
+          lt(employee_time_off.starts_at, rangeEndUtc),
+          gt(employee_time_off.ends_at, rangeStartUtc),
+        ),
+      )
+
+  const rows = await (tx ? run(tx) : withTenant(salonId, run))
 
   const out: CalendarBlock[] = rows.map((r) => ({
     id: r.id,

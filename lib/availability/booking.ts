@@ -11,9 +11,11 @@ import {
   lte,
   ne,
   or,
+  sql,
 } from 'drizzle-orm'
 
 import { db } from '@/lib/db'
+import { withTenant } from '@/lib/db/tenant'
 import {
   booking_items,
   booking_status_events,
@@ -410,6 +412,13 @@ export async function validateAndCreateBooking(
 
   try {
     const result = await db.transaction(async (tx) => {
+      // Regla 1 (tenant): fija el GUC como PRIMER statement de la tx. Bajo RLS
+      // forzada, sin esto todos los SELECT/INSERT de abajo verían 0 filas o
+      // serían denegados aunque el where salon_id sea correcto.
+      await tx.execute(
+        sql`select set_config('app.current_salon_id', ${String(input.salonId)}, true)`,
+      )
+
       // Necesitamos la duración del servicio antes de validar, así la
       // validación corre el ciclo completo de SELECTs sin race.
       const svc = (
@@ -518,12 +527,17 @@ export async function validateAndCreateBooking(
     // Idempotency replay: si el INSERT chocó con la UNIQUE de idempotency_key,
     // devolvemos la reserva original creada antes con la misma key.
     if (code === '23505' && input.idempotencyKey) {
+      // Bajo RLS este SELECT necesita el GUC del tenant; la tx original ya se
+      // revirtió, así que abrimos una tx con el tenant fijado para releerla.
+      const idempotencyKey = input.idempotencyKey
       const existing = (
-        await db
-          .select({ id: bookings.id, public_id: bookings.public_id })
-          .from(bookings)
-          .where(eq(bookings.idempotency_key, input.idempotencyKey))
-          .limit(1)
+        await withTenant(input.salonId, (tx) =>
+          tx
+            .select({ id: bookings.id, public_id: bookings.public_id })
+            .from(bookings)
+            .where(eq(bookings.idempotency_key, idempotencyKey))
+            .limit(1),
+        )
       )[0]
       if (existing) {
         return {

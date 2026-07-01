@@ -23,7 +23,7 @@ export default async function EditEmployeePage({
   const [employee, services, weeklyShifts] = await Promise.all([
     getEmployeeById(id, salon.id),
     listServicesForSalon(salon.id),
-    getWeeklySchedule(id),
+    getWeeklySchedule(id, salon.id),
   ])
   if (!employee) notFound()
 

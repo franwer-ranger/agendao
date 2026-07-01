@@ -2,7 +2,10 @@ import 'server-only'
 import { and, eq } from 'drizzle-orm'
 
 import { db } from '@/lib/db'
+import { withTenant } from '@/lib/db/tenant'
 import { clients } from '@/lib/db/schema'
+
+type TxDb = Parameters<Parameters<typeof db.transaction>[0]>[0]
 
 export type UpsertClientForBookingInput = {
   salonId: number
@@ -19,23 +22,35 @@ function isPgUniqueError(err: unknown): boolean {
   )
 }
 
-async function selectByEmail(salonId: number, email: string): Promise<number | null> {
+async function selectByEmail(
+  t: TxDb,
+  salonId: number,
+  email: string,
+): Promise<number | null> {
   // `clients.email` está declarado con `collate nocase` → la comparación
   // ya es case-insensitive sin lower().
-  const row = (await db
-    .select({ id: clients.id })
-    .from(clients)
-    .where(and(eq(clients.salon_id, salonId), eq(clients.email, email)))
-    .limit(1))[0]
+  const row = (
+    await t
+      .select({ id: clients.id })
+      .from(clients)
+      .where(and(eq(clients.salon_id, salonId), eq(clients.email, email)))
+      .limit(1)
+  )[0]
   return row?.id ?? null
 }
 
-async function selectByPhone(salonId: number, phone: string): Promise<number | null> {
-  const row = (await db
-    .select({ id: clients.id })
-    .from(clients)
-    .where(and(eq(clients.salon_id, salonId), eq(clients.phone, phone)))
-    .limit(1))[0]
+async function selectByPhone(
+  t: TxDb,
+  salonId: number,
+  phone: string,
+): Promise<number | null> {
+  const row = (
+    await t
+      .select({ id: clients.id })
+      .from(clients)
+      .where(and(eq(clients.salon_id, salonId), eq(clients.phone, phone)))
+      .limit(1)
+  )[0]
   return row?.id ?? null
 }
 
@@ -50,46 +65,57 @@ async function selectByPhone(salonId: number, phone: string): Promise<number | n
 // la identidad.
 export async function upsertClientForBooking(
   input: UpsertClientForBookingInput,
+  tx?: TxDb,
 ): Promise<{ id: number }> {
   if (!input.email && !input.phone) {
     throw new Error('clients_upsert_requires_email_or_phone')
   }
 
-  if (input.email) {
-    const id = await selectByEmail(input.salonId, input.email)
-    if (id !== null) return { id }
-  }
-  if (input.phone) {
-    const id = await selectByPhone(input.salonId, input.phone)
-    if (id !== null) return { id }
+  const run = async (t: TxDb): Promise<{ id: number }> => {
+    if (input.email) {
+      const id = await selectByEmail(t, input.salonId, input.email)
+      if (id !== null) return { id }
+    }
+    if (input.phone) {
+      const id = await selectByPhone(t, input.salonId, input.phone)
+      if (id !== null) return { id }
+    }
+
+    try {
+      // El INSERT va en un savepoint (subtransacción). Si choca con la UNIQUE
+      // parcial, sólo se revierte el savepoint y la tx externa sigue viva, así
+      // el re-SELECT de recuperación de carrera puede ejecutarse (una tx
+      // envenenada rechazaría cualquier query posterior).
+      const created = await t.transaction((sp) =>
+        sp
+          .insert(clients)
+          .values({
+            salon_id: input.salonId,
+            display_name: input.displayName,
+            email: input.email,
+            phone: input.phone,
+          })
+          .returning({ id: clients.id })
+          .then((rows) => rows[0]),
+      )
+      if (!created) throw new Error('No se pudo crear el cliente')
+      return { id: created.id }
+    } catch (e) {
+      // Carrera: otra request creó el mismo cliente entre nuestros SELECT y el
+      // INSERT. La UNIQUE parcial saltó; re-leemos para devolver el id ganador.
+      if (isPgUniqueError(e)) {
+        if (input.email) {
+          const id = await selectByEmail(t, input.salonId, input.email)
+          if (id !== null) return { id }
+        }
+        if (input.phone) {
+          const id = await selectByPhone(t, input.salonId, input.phone)
+          if (id !== null) return { id }
+        }
+      }
+      throw e
+    }
   }
 
-  try {
-    const inserted = await db
-      .insert(clients)
-      .values({
-        salon_id: input.salonId,
-        display_name: input.displayName,
-        email: input.email,
-        phone: input.phone,
-      })
-      .returning({ id: clients.id })
-    const created = inserted[0]
-    if (!created) throw new Error('No se pudo crear el cliente')
-    return { id: created.id }
-  } catch (e) {
-    // Carrera: otra request creó el mismo cliente entre nuestros SELECT y el
-    // INSERT. La UNIQUE parcial saltó; re-leemos para devolver el id ganador.
-    if (isPgUniqueError(e)) {
-      if (input.email) {
-        const id = await selectByEmail(input.salonId, input.email)
-        if (id !== null) return { id }
-      }
-      if (input.phone) {
-        const id = await selectByPhone(input.salonId, input.phone)
-        if (id !== null) return { id }
-      }
-    }
-    throw e
-  }
+  return tx ? run(tx) : withTenant(input.salonId, run)
 }
