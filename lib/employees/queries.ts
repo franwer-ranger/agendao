@@ -86,14 +86,14 @@ export async function getPublicEmployeeName({
   salonId: number
   employeeId: number
 }): Promise<string | null> {
-  const row = db
+  const row = (await db
     .select({
       display_name: employees.display_name,
       is_active: employees.is_active,
     })
     .from(employees)
     .where(and(eq(employees.id, employeeId), eq(employees.salon_id, salonId)))
-    .get()
+    .limit(1))[0]
 
   if (!row || !row.is_active) return null
   return row.display_name
@@ -115,7 +115,7 @@ export async function listPublicEmployeesForService({
   salonId: number
   serviceId: number
 }): Promise<PublicEmployeeRow[]> {
-  return db
+  return await db
     .select({
       id: employees.id,
       display_name: employees.display_name,
@@ -134,7 +134,6 @@ export async function listPublicEmployeesForService({
       ),
     )
     .orderBy(asc(employees.display_order), asc(employees.display_name))
-    .all()
 }
 
 // ─── Listado ───────────────────────────────────────────────────────────────
@@ -158,7 +157,7 @@ export async function listEmployees({
         )
       : eq(employees.salon_id, salonId)
 
-  const rows = db
+  const rows = await db
     .select({
       id: employees.id,
       display_name: employees.display_name,
@@ -173,11 +172,10 @@ export async function listEmployees({
       asc(employees.display_order),
       asc(employees.display_name),
     )
-    .all()
 
   if (rows.length === 0) return []
 
-  const counts = db
+  const counts = await db
     .select({
       employee_id: employee_services.employee_id,
       c: count(),
@@ -190,7 +188,6 @@ export async function listEmployees({
       ),
     )
     .groupBy(employee_services.employee_id)
-    .all()
 
   const countBy = new Map(counts.map((r) => [r.employee_id, r.c]))
 
@@ -206,7 +203,7 @@ export async function getEmployeeById(
   id: number,
   salonId: number,
 ): Promise<EmployeeDetail | null> {
-  const row = db
+  const row = (await db
     .select({
       id: employees.id,
       salon_id: employees.salon_id,
@@ -218,15 +215,14 @@ export async function getEmployeeById(
     })
     .from(employees)
     .where(and(eq(employees.id, id), eq(employees.salon_id, salonId)))
-    .get()
+    .limit(1))[0]
 
   if (!row) return null
 
-  const svcRows = db
+  const svcRows = await db
     .select({ service_id: employee_services.service_id })
     .from(employee_services)
     .where(eq(employee_services.employee_id, id))
-    .all()
 
   return {
     ...row,
@@ -239,7 +235,7 @@ export async function getEmployeeById(
 export async function getWeeklySchedule(
   employeeId: number,
 ): Promise<WeeklyShift[]> {
-  const rows = db
+  const rows = await db
     .select({
       id: employee_weekly_schedule.id,
       weekday: employee_weekly_schedule.weekday,
@@ -257,7 +253,6 @@ export async function getWeeklySchedule(
       asc(employee_weekly_schedule.weekday),
       asc(employee_weekly_schedule.starts_at),
     )
-    .all()
 
   return rows.map((r) => ({
     id: r.id,
@@ -274,7 +269,7 @@ export async function getWeeklySchedule(
 export async function getRecurringBreaks(
   employeeId: number,
 ): Promise<RecurringBreak[]> {
-  const rows = db
+  const rows = await db
     .select({
       id: employee_recurring_breaks.id,
       weekday: employee_recurring_breaks.weekday,
@@ -293,7 +288,6 @@ export async function getRecurringBreaks(
       asc(employee_recurring_breaks.weekday),
       asc(employee_recurring_breaks.starts_at),
     )
-    .all()
 
   return rows.map((r) => ({
     id: r.id,
@@ -317,7 +311,7 @@ export async function getTimeOff(
         gte(employee_time_off.ends_at, new Date()),
       )
 
-  const rows = db
+  const rows = await db
     .select({
       id: employee_time_off.id,
       starts_at: employee_time_off.starts_at,
@@ -328,7 +322,6 @@ export async function getTimeOff(
     .from(employee_time_off)
     .where(where)
     .orderBy(desc(employee_time_off.id))
-    .all()
 
   const out: TimeOffEntry[] = rows.map((r) => ({
     id: r.id,
@@ -346,7 +339,7 @@ export async function getTimeOff(
 export async function listServicesForSalon(
   salonId: number,
 ): Promise<ServiceOption[]> {
-  return db
+  return await db
     .select({
       id: services.id,
       name: services.name,
@@ -355,5 +348,4 @@ export async function listServicesForSalon(
     .from(services)
     .where(eq(services.salon_id, salonId))
     .orderBy(asc(services.display_order), asc(services.name))
-    .all()
 }

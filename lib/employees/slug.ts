@@ -21,12 +21,12 @@ export function slugify(input: string): string {
 // `txDb` permite reutilizar la transacción de Drizzle si la llamada está
 // dentro de una. La UNIQUE de `employees_salon_slug_unique` aborta el INSERT
 // si entre comprobación y persistencia se colara otro slug igual.
-export function resolveUniqueEmployeeSlug(
+export async function resolveUniqueEmployeeSlug(
   salonId: number,
   desired: string,
   excludeId?: number,
   txDb: TxLike = db,
-): string {
+): Promise<string> {
   const base = slugify(desired)
   let candidate = base
   let n = 1
@@ -40,12 +40,11 @@ export function resolveUniqueEmployeeSlug(
             eq(employees.slug, candidate),
             ne(employees.id, excludeId),
           )
-    const hit = txDb
+    const hit = (await txDb
       .select({ id: employees.id })
       .from(employees)
       .where(where)
-      .limit(1)
-      .get()
+      .limit(1))[0]
     if (!hit) return candidate
 
     n += 1
