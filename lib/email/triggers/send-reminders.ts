@@ -42,7 +42,7 @@ export async function runReminderBatch(): Promise<ReminderRunResult> {
     client_email: string | null
   }> = []
   try {
-    scanned = db
+    scanned = await db
       .select({
         id: bookings.id,
         salon_id: bookings.salon_id,
@@ -57,7 +57,6 @@ export async function runReminderBatch(): Promise<ReminderRunResult> {
           lte(bookings.starts_at, windowEnd),
         ),
       )
-      .all()
   } catch (err) {
     result.errors.push(
       `query failed: ${err instanceof Error ? err.message : String(err)}`,

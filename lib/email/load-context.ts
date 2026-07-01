@@ -18,32 +18,34 @@ import type { BookingEmailContext } from './types'
 export async function loadBookingEmailContext(
   bookingId: number,
 ): Promise<BookingEmailContext | null> {
-  const head = db
-    .select({
-      booking_id: bookings.id,
-      booking_public_id: bookings.public_id,
-      booking_starts_at: bookings.starts_at,
-      booking_ends_at: bookings.ends_at,
-      salon_id: salons.id,
-      salon_name: salons.name,
-      salon_timezone: salons.timezone,
-      salon_address: salons.address,
-      salon_phone: salons.phone,
-      salon_contact_email: salons.contact_email,
-      salon_logo_path: salons.logo_path,
-      salon_cancellation_min_hours: salons.cancellation_min_hours,
-      salon_cancellation_policy_text: salons.cancellation_policy_text,
-      client_display_name: clients.display_name,
-      client_email: clients.email,
-    })
-    .from(bookings)
-    .innerJoin(clients, eq(clients.id, bookings.client_id))
-    .innerJoin(salons, eq(salons.id, bookings.salon_id))
-    .where(eq(bookings.id, bookingId))
-    .get()
+  const head = (
+    await db
+      .select({
+        booking_id: bookings.id,
+        booking_public_id: bookings.public_id,
+        booking_starts_at: bookings.starts_at,
+        booking_ends_at: bookings.ends_at,
+        salon_id: salons.id,
+        salon_name: salons.name,
+        salon_timezone: salons.timezone,
+        salon_address: salons.address,
+        salon_phone: salons.phone,
+        salon_contact_email: salons.contact_email,
+        salon_logo_path: salons.logo_path,
+        salon_cancellation_min_hours: salons.cancellation_min_hours,
+        salon_cancellation_policy_text: salons.cancellation_policy_text,
+        client_display_name: clients.display_name,
+        client_email: clients.email,
+      })
+      .from(bookings)
+      .innerJoin(clients, eq(clients.id, bookings.client_id))
+      .innerJoin(salons, eq(salons.id, bookings.salon_id))
+      .where(eq(bookings.id, bookingId))
+      .limit(1)
+  )[0]
   if (!head) return null
 
-  const itemRows = db
+  const itemRows = await db
     .select({
       position: booking_items.position,
       service_snapshot: booking_items.service_snapshot,
@@ -53,7 +55,6 @@ export async function loadBookingEmailContext(
     .innerJoin(employees, eq(employees.id, booking_items.employee_id))
     .where(eq(booking_items.booking_id, bookingId))
     .orderBy(asc(booking_items.position))
-    .all()
 
   const items = itemRows.map((it) => {
     const snap = it.service_snapshot as {
@@ -104,13 +105,15 @@ export async function getSalonNotificationConfig(salonId: number): Promise<{
   notifySalon: boolean
   contactEmail: string | null
 } | null> {
-  const row = db
-    .select({
-      notifySalon: salons.notify_salon_on_new_booking,
-      contactEmail: salons.contact_email,
-    })
-    .from(salons)
-    .where(eq(salons.id, salonId))
-    .get()
+  const row = (
+    await db
+      .select({
+        notifySalon: salons.notify_salon_on_new_booking,
+        contactEmail: salons.contact_email,
+      })
+      .from(salons)
+      .where(eq(salons.id, salonId))
+      .limit(1)
+  )[0]
   return row ?? null
 }
