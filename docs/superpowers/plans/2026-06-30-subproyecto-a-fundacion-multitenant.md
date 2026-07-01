@@ -275,12 +275,9 @@ npx drizzle-kit generate --custom --name hardening
   Rellenarla recuperando el DDL original (`git show c490267:supabase/migrations/<f>`)
   y adaptándolo. Contenido exacto:
 
-  **a) Columnas generadas `during`** (en `bookings` y `booking_items`):
+  **a) Columna generada `during`** (solo en `booking_items` — es la única que usan el
+  `EXCLUDE` y el trigger de capacidad; YAGNI, no la añadimos a `bookings`):
 ```sql
-alter table bookings
-  add column during tstzrange
-  generated always as (tstzrange(starts_at, ends_at, '[)')) stored;
-
 alter table booking_items
   add column during tstzrange
   generated always as (tstzrange(starts_at, ends_at, '[)')) stored;
@@ -295,13 +292,20 @@ alter table booking_items
     during with &&
   ) where (booking_status in ('pending','confirmed','in_progress'));
 ```
-  **c) Trigger de validación** (`booking_items_validate`) y **trigger de capacidad**
-  (`booking_items_check_capacity`, con `pg_advisory_xact_lock`): recuperar de
-  `…120004_booking_validations.sql` **y** la versión ampliada del `validate` con
-  horario de salón de `…120001_salon_settings_and_hours.sql` (commit posterior;
-  `git log --all --oneline -S "booking_items_validate"` para localizarla). Pegar ambas
-  funciones + sus `create trigger`. (Son ~150 líneas; van verbatim, solo verificar que
-  los nombres de columnas coinciden con el esquema actual.)
+  **c) SOLO el trigger de capacidad** (`booking_items_check_capacity`, con
+  `pg_advisory_xact_lock`): recuperar verbatim de
+  `git show c490267:supabase/migrations/20260510120004_booking_validations.sql` la
+  función `booking_items_check_capacity` + su `create trigger t03_...`. Usa
+  `bi.during && new.during`, que funciona con la columna `during` de `booking_items`
+  (paso a). Solo referencia `services.max_concurrent`, `booking_items.service_id/
+  booking_status/id/during` — todo existe en el esquema.
+  **NO instalar el trigger `booking_items_validate` completo.** Decisión híbrida (opción
+  A elegida): la BD garantiza únicamente lo que TS no puede bajo concurrencia — solape
+  por empleado (`EXCLUDE`, paso b) y capacidad (este trigger). El resto de validaciones
+  (horario, descansos, time-off, cierres, horas de salón, antelación mínima) se quedan
+  en el pre-check TS de `lib/availability/booking.ts`. Instalar el `validate` completo
+  obligaría a añadir `during` a `employee_time_off`/`salon_closures` y duplicaría la
+  lógica TS (riesgo de "disparidad motor/trigger").
 - [ ] **Step 3 (verificar):** `npm run db:migrate` aplica las tres migraciones sin
   error. Comprobar en `db:studio` o con un `SELECT` que el EXCLUDE existe:
 ```sql
