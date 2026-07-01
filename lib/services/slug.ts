@@ -21,12 +21,12 @@ export function slugify(input: string): string {
 // `txDb` permite reutilizar la transacción de Drizzle si la llamada está
 // dentro de una. Sin transacción hay una ventana TOCTOU mínima; la UNIQUE
 // de `services.salon_slug_unique` hará abortar el INSERT en ese improbable caso.
-export function resolveUniqueServiceSlug(
+export async function resolveUniqueServiceSlug(
   salonId: number,
   desired: string,
   excludeId?: number,
   txDb: TxLike = db,
-): string {
+): Promise<string> {
   const base = slugify(desired)
   let candidate = base
   let n = 1
@@ -40,12 +40,13 @@ export function resolveUniqueServiceSlug(
             eq(services.slug, candidate),
             ne(services.id, excludeId),
           )
-    const hit = txDb
-      .select({ id: services.id })
-      .from(services)
-      .where(where)
-      .limit(1)
-      .get()
+    const hit = (
+      await txDb
+        .select({ id: services.id })
+        .from(services)
+        .where(where)
+        .limit(1)
+    )[0]
     if (!hit) return candidate
 
     n += 1

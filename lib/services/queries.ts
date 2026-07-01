@@ -48,7 +48,7 @@ export async function listServices({
         )
       : eq(services.salon_id, salonId)
 
-  const rows = db
+  const rows = await db
     .select({
       id: services.id,
       name: services.name,
@@ -65,11 +65,10 @@ export async function listServices({
       asc(services.display_order),
       asc(services.name),
     )
-    .all()
 
   if (rows.length === 0) return []
 
-  const counts = db
+  const counts = await db
     .select({
       service_id: employee_services.service_id,
       c: count(),
@@ -82,7 +81,6 @@ export async function listServices({
       ),
     )
     .groupBy(employee_services.service_id)
-    .all()
 
   const countBy = new Map(counts.map((r) => [r.service_id, r.c]))
 
@@ -96,28 +94,29 @@ export async function getServiceById(
   id: number,
   salonId: number,
 ): Promise<ServiceDetail | null> {
-  const row = db
-    .select({
-      id: services.id,
-      salon_id: services.salon_id,
-      name: services.name,
-      description: services.description,
-      duration_minutes: services.duration_minutes,
-      price_cents: services.price_cents,
-      max_concurrent: services.max_concurrent,
-      is_active: services.is_active,
-    })
-    .from(services)
-    .where(and(eq(services.id, id), eq(services.salon_id, salonId)))
-    .get()
+  const row = (
+    await db
+      .select({
+        id: services.id,
+        salon_id: services.salon_id,
+        name: services.name,
+        description: services.description,
+        duration_minutes: services.duration_minutes,
+        price_cents: services.price_cents,
+        max_concurrent: services.max_concurrent,
+        is_active: services.is_active,
+      })
+      .from(services)
+      .where(and(eq(services.id, id), eq(services.salon_id, salonId)))
+      .limit(1)
+  )[0]
 
   if (!row) return null
 
-  const empRows = db
+  const empRows = await db
     .select({ employee_id: employee_services.employee_id })
     .from(employee_services)
     .where(eq(employee_services.service_id, id))
-    .all()
 
   return {
     ...row,
@@ -138,7 +137,7 @@ export type ServiceWithEmployees = {
 export async function listActiveServicesWithEmployees(
   salonId: number,
 ): Promise<ServiceWithEmployees[]> {
-  const rows = db
+  const rows = await db
     .select({
       id: services.id,
       name: services.name,
@@ -148,11 +147,10 @@ export async function listActiveServicesWithEmployees(
     .from(services)
     .where(and(eq(services.salon_id, salonId), eq(services.is_active, true)))
     .orderBy(asc(services.display_order), asc(services.name))
-    .all()
 
   if (rows.length === 0) return []
 
-  const assignments = db
+  const assignments = await db
     .select({
       service_id: employee_services.service_id,
       employee_id: employee_services.employee_id,
@@ -164,7 +162,6 @@ export async function listActiveServicesWithEmployees(
         rows.map((r) => r.id),
       ),
     )
-    .all()
 
   const empsBy = new Map<number, number[]>()
   for (const a of assignments) {
@@ -193,7 +190,7 @@ export type PublicServiceRow = {
 export async function listPublicServices(
   salonId: number,
 ): Promise<PublicServiceRow[]> {
-  return db
+  return await db
     .select({
       id: services.id,
       name: services.name,
@@ -204,13 +201,12 @@ export async function listPublicServices(
     .from(services)
     .where(and(eq(services.salon_id, salonId), eq(services.is_active, true)))
     .orderBy(asc(services.display_order), asc(services.name))
-    .all()
 }
 
 export async function listEmployeesForSalon(
   salonId: number,
 ): Promise<EmployeeOption[]> {
-  return db
+  return await db
     .select({
       id: employees.id,
       display_name: employees.display_name,
@@ -219,5 +215,4 @@ export async function listEmployeesForSalon(
     .from(employees)
     .where(eq(employees.salon_id, salonId))
     .orderBy(asc(employees.display_order), asc(employees.display_name))
-    .all()
 }

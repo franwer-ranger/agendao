@@ -18,32 +18,30 @@ export type ActionState = {
 
 type TxDb = Parameters<Parameters<typeof db.transaction>[0]>[0]
 
-function syncEmployeeAssignments(
+async function syncEmployeeAssignments(
   serviceId: number,
   salonId: number,
   desiredEmployeeIds: number[],
   tx: TxDb,
-): void {
+): Promise<void> {
   // Validate the IDs all belong to this salon (defense in depth — the form
   // only renders salon employees, but the action is the trust boundary).
   let desired = desiredEmployeeIds
   if (desired.length > 0) {
-    const validRows = tx
+    const validRows = await tx
       .select({ id: employees.id })
       .from(employees)
       .where(
         and(eq(employees.salon_id, salonId), inArray(employees.id, desired)),
       )
-      .all()
     const validSet = new Set(validRows.map((r) => r.id))
     desired = desired.filter((id) => validSet.has(id))
   }
 
-  const existing = tx
+  const existing = await tx
     .select({ employee_id: employee_services.employee_id })
     .from(employee_services)
     .where(eq(employee_services.service_id, serviceId))
-    .all()
 
   const existingIds = new Set(existing.map((r) => r.employee_id))
   const desiredSet = new Set(desired)
@@ -52,22 +50,20 @@ function syncEmployeeAssignments(
   const toRemove = [...existingIds].filter((id) => !desiredSet.has(id))
 
   if (toRemove.length > 0) {
-    tx.delete(employee_services)
+    await tx.delete(employee_services)
       .where(
         and(
           eq(employee_services.service_id, serviceId),
           inArray(employee_services.employee_id, toRemove),
         ),
       )
-      .run()
   }
 
   if (toAdd.length > 0) {
-    tx.insert(employee_services)
+    await tx.insert(employee_services)
       .values(
         toAdd.map((employee_id) => ({ employee_id, service_id: serviceId })),
       )
-      .run()
   }
 }
 
@@ -86,14 +82,14 @@ export async function createServiceAction(
   const salon = await getCurrentSalon()
 
   try {
-    db.transaction((tx) => {
-      const slug = resolveUniqueServiceSlug(
+    await db.transaction(async (tx) => {
+      const slug = await resolveUniqueServiceSlug(
         salon.id,
         parsed.data.name,
         undefined,
         tx,
       )
-      const inserted = tx
+      const inserted = await tx
         .insert(services)
         .values({
           salon_id: salon.id,
@@ -106,11 +102,10 @@ export async function createServiceAction(
           is_active: parsed.data.is_active,
         })
         .returning({ id: services.id })
-        .all()
       const created = inserted[0]
       if (!created) throw new Error('No se pudo crear el servicio')
 
-      syncEmployeeAssignments(
+      await syncEmployeeAssignments(
         created.id,
         salon.id,
         parsed.data.employee_ids,
@@ -141,24 +136,26 @@ export async function updateServiceAction(
   const salon = await getCurrentSalon()
 
   try {
-    db.transaction((tx) => {
-      const current = tx
-        .select({
-          id: services.id,
-          name: services.name,
-          slug: services.slug,
-        })
-        .from(services)
-        .where(and(eq(services.id, serviceId), eq(services.salon_id, salon.id)))
-        .get()
+    await db.transaction(async (tx) => {
+      const current = (
+        await tx
+          .select({
+            id: services.id,
+            name: services.name,
+            slug: services.slug,
+          })
+          .from(services)
+          .where(and(eq(services.id, serviceId), eq(services.salon_id, salon.id)))
+          .limit(1)
+      )[0]
       if (!current) throw new Error('Servicio no encontrado')
 
       const slug =
         current.name === parsed.data.name
           ? current.slug
-          : resolveUniqueServiceSlug(salon.id, parsed.data.name, serviceId, tx)
+          : await resolveUniqueServiceSlug(salon.id, parsed.data.name, serviceId, tx)
 
-      tx.update(services)
+      await tx.update(services)
         .set({
           name: parsed.data.name,
           slug,
@@ -169,9 +166,8 @@ export async function updateServiceAction(
           is_active: parsed.data.is_active,
         })
         .where(and(eq(services.id, serviceId), eq(services.salon_id, salon.id)))
-        .run()
 
-      syncEmployeeAssignments(serviceId, salon.id, parsed.data.employee_ids, tx)
+      await syncEmployeeAssignments(serviceId, salon.id, parsed.data.employee_ids, tx)
     })
   } catch (e) {
     return { ok: false, message: (e as Error).message }
@@ -192,10 +188,9 @@ export async function setServiceActiveAction(
 
   const salon = await getCurrentSalon()
 
-  db.update(services)
+  await db.update(services)
     .set({ is_active: active })
     .where(and(eq(services.id, id), eq(services.salon_id, salon.id)))
-    .run()
 
   revalidatePath('/admin/services')
 }
