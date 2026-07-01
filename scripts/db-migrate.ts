@@ -1,16 +1,13 @@
-import Database from 'better-sqlite3'
-import { drizzle } from 'drizzle-orm/better-sqlite3'
-import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
-import { mkdirSync } from 'node:fs'
-import { dirname } from 'node:path'
+import { Pool } from 'pg'
+import { drizzle } from 'drizzle-orm/node-postgres'
+import { migrate } from 'drizzle-orm/node-postgres/migrator'
 
-const url = process.env.DATABASE_URL ?? './data/dev.db'
-mkdirSync(dirname(url), { recursive: true })
+const connectionString = process.env.DATABASE_URL
+if (!connectionString) throw new Error('DATABASE_URL no está definida')
 
-const sqlite = new Database(url)
-sqlite.pragma('foreign_keys = ON')
-const db = drizzle(sqlite)
+const pool = new Pool({ connectionString })
+const db = drizzle(pool)
 
-migrate(db, { migrationsFolder: './drizzle' })
-sqlite.close()
-process.stdout.write(`Migrations applied to ${url}\n`)
+await migrate(db, { migrationsFolder: './drizzle' })
+await pool.end()
+process.stdout.write(`Migrations applied to Postgres\n`)

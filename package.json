@@ -12,8 +12,8 @@
     "test:watch": "vitest",
     "predeploy": "npm run lint && npm test",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "tsx scripts/db-migrate.ts",
-    "db:seed": "tsx scripts/db-seed.ts",
+    "db:migrate": "tsx --env-file=.env.local scripts/db-migrate.ts",
+    "db:seed": "tsx --env-file=.env.local scripts/db-seed.ts",
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
