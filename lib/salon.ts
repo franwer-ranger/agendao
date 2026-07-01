@@ -17,7 +17,7 @@ export async function getCurrentSalon(): Promise<CurrentSalon> {
   if (!session?.user?.salonId) {
     throw new Error('No hay sesión activa')
   }
-  const row = db
+  const row = (await db
     .select({
       id: salons.id,
       slug: salons.slug,
@@ -28,7 +28,7 @@ export async function getCurrentSalon(): Promise<CurrentSalon> {
     })
     .from(salons)
     .where(eq(salons.id, session.user.salonId))
-    .get()
+    .limit(1))[0]
 
   if (!row) {
     throw new Error('Salón no encontrado para la sesión actual')

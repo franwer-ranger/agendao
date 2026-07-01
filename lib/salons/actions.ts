@@ -43,11 +43,11 @@ export async function updateIdentityAction(
   const salon = await getCurrentSalon()
 
   // Estado actual para saber el logo_path previo (lo borraremos si procede).
-  const current = db
+  const current = (await db
     .select({ logo_path: salons.logo_path })
     .from(salons)
     .where(eq(salons.id, salon.id))
-    .get()
+    .limit(1))[0]
   const previousLogoPath = current?.logo_path ?? null
 
   // Logo nuevo (si lo hay). Sigue usando Supabase Storage en M2; se reemplaza en M3.
@@ -68,7 +68,7 @@ export async function updateIdentityAction(
   }
 
   try {
-    db.update(salons)
+    await db.update(salons)
       .set({
         name: parsed.data.name,
         address: parsed.data.address,
@@ -77,7 +77,6 @@ export async function updateIdentityAction(
         logo_path: nextLogoPath,
       })
       .where(eq(salons.id, salon.id))
-      .run()
   } catch (e) {
     return { ok: false, message: (e as Error).message }
   }
@@ -123,12 +122,11 @@ export async function replaceWorkingHoursAction(
     }))
 
   try {
-    db.transaction((tx) => {
-      tx.delete(salon_working_hours)
+    await db.transaction(async (tx) => {
+      await tx.delete(salon_working_hours)
         .where(eq(salon_working_hours.salon_id, salon.id))
-        .run()
       if (rows.length > 0) {
-        tx.insert(salon_working_hours).values(rows).run()
+        await tx.insert(salon_working_hours).values(rows)
       }
     })
   } catch (e) {
@@ -160,10 +158,10 @@ export async function createSalonClosureAction(
   const endUtc = salonDateToUtc(addDaysIsoLocal(parsed.data.ends_on, 1))
 
   try {
-    db.transaction((tx) => {
+    await db.transaction(async (tx) => {
       // Replica del EXCLUDE GIST de Postgres: rechazar si solapa con otro cierre
       // del mismo salón. Overlap half-open: start < otherEnd AND end > otherStart.
-      const overlap = tx
+      const overlap = (await tx
         .select({ id: salon_closures.id })
         .from(salon_closures)
         .where(
@@ -173,21 +171,19 @@ export async function createSalonClosureAction(
             gt(salon_closures.ends_at, startUtc),
           ),
         )
-        .limit(1)
-        .get()
+        .limit(1))[0]
 
       if (overlap) {
         throw new Error('Se solapa con otro cierre ya configurado.')
       }
 
-      tx.insert(salon_closures)
+      await tx.insert(salon_closures)
         .values({
           salon_id: salon.id,
           starts_at: startUtc,
           ends_at: endUtc,
           label: parsed.data.label,
         })
-        .run()
     })
   } catch (e) {
     return { ok: false, message: (e as Error).message }
@@ -206,11 +202,10 @@ export async function deleteSalonClosureAction(
 
   const salon = await getCurrentSalon()
 
-  db.delete(salon_closures)
+  await db.delete(salon_closures)
     .where(
       and(eq(salon_closures.id, id), eq(salon_closures.salon_id, salon.id)),
     )
-    .run()
 
   revalidatePath(REVALIDATE_PATH)
 }
@@ -232,14 +227,13 @@ export async function updateBookingsAction(
   const salon = await getCurrentSalon()
 
   try {
-    db.update(salons)
+    await db.update(salons)
       .set({
         slot_granularity_minutes: parsed.data.slot_granularity_minutes,
         booking_min_hours_ahead: parsed.data.booking_min_hours_ahead,
         booking_max_days_ahead: parsed.data.booking_max_days_ahead,
       })
       .where(eq(salons.id, salon.id))
-      .run()
   } catch (e) {
     return { ok: false, message: (e as Error).message }
   }
@@ -265,13 +259,12 @@ export async function updateCancellationAction(
   const salon = await getCurrentSalon()
 
   try {
-    db.update(salons)
+    await db.update(salons)
       .set({
         cancellation_min_hours: parsed.data.cancellation_min_hours,
         cancellation_policy_text: parsed.data.cancellation_policy_text,
       })
       .where(eq(salons.id, salon.id))
-      .run()
   } catch (e) {
     return { ok: false, message: (e as Error).message }
   }
@@ -297,10 +290,9 @@ export async function updateLegalAction(
   const salon = await getCurrentSalon()
 
   try {
-    db.update(salons)
+    await db.update(salons)
       .set({ terms_text: parsed.data.terms_text })
       .where(eq(salons.id, salon.id))
-      .run()
   } catch (e) {
     return { ok: false, message: (e as Error).message }
   }

@@ -59,11 +59,11 @@ const SALON_SETTINGS_COLUMNS = {
 // request reusen el resultado sin refetch.
 export const getSalonBySlug = cache(
   async (slug: string): Promise<SalonSettings | null> => {
-    const row = db
+    const row = (await db
       .select(SALON_SETTINGS_COLUMNS)
       .from(salons)
       .where(eq(salons.slug, slug))
-      .get()
+      .limit(1))[0]
     return row ?? null
   },
 )
@@ -71,18 +71,18 @@ export const getSalonBySlug = cache(
 export async function getSalonSettings(
   salonId: number,
 ): Promise<SalonSettings | null> {
-  const row = db
+  const row = (await db
     .select(SALON_SETTINGS_COLUMNS)
     .from(salons)
     .where(eq(salons.id, salonId))
-    .get()
+    .limit(1))[0]
   return row ?? null
 }
 
 export async function getSalonWorkingHours(
   salonId: number,
 ): Promise<SalonWorkingDay[]> {
-  const rows = db
+  const rows = await db
     .select({
       weekday: salon_working_hours.weekday,
       opens_at: salon_working_hours.opens_at,
@@ -91,7 +91,6 @@ export async function getSalonWorkingHours(
     .from(salon_working_hours)
     .where(eq(salon_working_hours.salon_id, salonId))
     .orderBy(asc(salon_working_hours.weekday))
-    .all()
 
   return rows.map((r) => ({
     weekday: r.weekday,
@@ -113,7 +112,7 @@ export async function getSalonClosures(
         gte(salon_closures.ends_at, new Date()),
       )
 
-  const rows = db
+  const rows = await db
     .select({
       id: salon_closures.id,
       starts_at: salon_closures.starts_at,
@@ -123,7 +122,6 @@ export async function getSalonClosures(
     .from(salon_closures)
     .where(where)
     .orderBy(desc(salon_closures.id))
-    .all()
 
   const out = rows.map((r) => ({
     id: r.id,
