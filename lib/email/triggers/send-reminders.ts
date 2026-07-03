@@ -2,7 +2,8 @@ import 'server-only'
 import { and, eq, gte, inArray, lte } from 'drizzle-orm'
 
 import { db } from '@/lib/db'
-import { bookings, clients } from '@/lib/db/schema'
+import { bookings, clients, salons } from '@/lib/db/schema'
+import { withTenant } from '@/lib/db/tenant'
 import { loadBookingEmailContext } from '@/lib/email/load-context'
 import { sendBookingEmail } from '@/lib/email/send'
 import { BookingReminderEmail } from '@/lib/email/templates/booking-reminder'
@@ -36,74 +37,92 @@ export async function runReminderBatch(): Promise<ReminderRunResult> {
   const windowStart = new Date(now.getTime() + 23 * 60 * 60 * 1000)
   const windowEnd = new Date(now.getTime() + 25 * 60 * 60 * 1000)
 
-  let scanned: Array<{
-    id: number
-    salon_id: number
-    client_email: string | null
-  }> = []
+  // Bajo RLS, un barrido cross-tenant de `bookings` sin GUC devuelve 0 filas.
+  // Enumeramos salones (policy SELECT pública `using(true)`, sin GUC) y hacemos
+  // el scan de cada uno dentro de su propio withTenant.
+  let salonRows: Array<{ id: number }> = []
   try {
-    scanned = await db
-      .select({
-        id: bookings.id,
-        salon_id: bookings.salon_id,
-        client_email: clients.email,
-      })
-      .from(bookings)
-      .innerJoin(clients, eq(clients.id, bookings.client_id))
-      .where(
-        and(
-          inArray(bookings.status, ['pending', 'confirmed']),
-          gte(bookings.starts_at, windowStart),
-          lte(bookings.starts_at, windowEnd),
-        ),
-      )
+    salonRows = await db.select({ id: salons.id }).from(salons)
   } catch (err) {
     result.errors.push(
-      `query failed: ${err instanceof Error ? err.message : String(err)}`,
+      `salon enumeration failed: ${err instanceof Error ? err.message : String(err)}`,
     )
     return result
   }
 
-  result.scanned = scanned.length
-
-  for (const booking of scanned) {
-    if (!booking.client_email) {
-      result.skipped += 1
+  for (const { id: salonId } of salonRows) {
+    let scanned: Array<{
+      id: number
+      client_email: string | null
+    }> = []
+    try {
+      scanned = await withTenant(salonId, (tx) =>
+        tx
+          .select({
+            id: bookings.id,
+            client_email: clients.email,
+          })
+          .from(bookings)
+          .innerJoin(clients, eq(clients.id, bookings.client_id))
+          .where(
+            and(
+              inArray(bookings.status, ['pending', 'confirmed']),
+              gte(bookings.starts_at, windowStart),
+              lte(bookings.starts_at, windowEnd),
+            ),
+          ),
+      )
+    } catch (err) {
+      result.errors.push(
+        `salon ${salonId} query failed: ${err instanceof Error ? err.message : String(err)}`,
+      )
       continue
     }
 
-    try {
-      const ctx = await loadBookingEmailContext(booking.id)
-      if (!ctx) {
-        result.failed += 1
-        result.errors.push(`booking ${booking.id}: context not found`)
+    result.scanned += scanned.length
+
+    for (const booking of scanned) {
+      if (!booking.client_email) {
+        result.skipped += 1
         continue
       }
 
-      const sendResult = await sendBookingEmail({
-        to: ctx.client.email,
-        subject: `Recordatorio: mañana tienes cita en ${ctx.salon.name}`,
-        react: BookingReminderEmail({ ctx }),
-        kind: 'booking_reminder',
-        bookingId: booking.id,
-        salonId: booking.salon_id,
-      })
-
-      if (sendResult.ok) {
-        if ('skipped' in sendResult && sendResult.skipped) {
-          result.skipped += 1
-        } else {
-          result.sent += 1
+      try {
+        // loadBookingEmailContext se auto-envuelve con este salonId; el envío
+        // (sendBookingEmail) reserva el slot de booking_notifications (unique
+        // key) → idempotencia aunque dos crons coincidan.
+        const ctx = await loadBookingEmailContext(booking.id, salonId)
+        if (!ctx) {
+          result.failed += 1
+          result.errors.push(`booking ${booking.id}: context not found`)
+          continue
         }
-      } else {
+
+        const sendResult = await sendBookingEmail({
+          to: ctx.client.email,
+          subject: `Recordatorio: mañana tienes cita en ${ctx.salon.name}`,
+          react: BookingReminderEmail({ ctx }),
+          kind: 'booking_reminder',
+          bookingId: booking.id,
+          salonId,
+        })
+
+        if (sendResult.ok) {
+          if ('skipped' in sendResult && sendResult.skipped) {
+            result.skipped += 1
+          } else {
+            result.sent += 1
+          }
+        } else {
+          result.failed += 1
+          result.errors.push(`booking ${booking.id}: ${sendResult.error}`)
+        }
+      } catch (err) {
         result.failed += 1
-        result.errors.push(`booking ${booking.id}: ${sendResult.error}`)
+        result.errors.push(
+          `booking ${booking.id}: ${err instanceof Error ? err.message : String(err)}`,
+        )
       }
-    } catch (err) {
-      result.failed += 1
-      result.errors.push(
-        `booking ${booking.id}: ${err instanceof Error ? err.message : String(err)}`,
-      )
     }
   }
 

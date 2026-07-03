@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm'
 import { formatInTimeZone, fromZonedTime } from 'date-fns-tz'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { Pool } from 'pg'
@@ -7,6 +8,22 @@ const connectionString = process.env.DATABASE_URL
 if (!connectionString) throw new Error('DATABASE_URL no está definida')
 const pool = new Pool({ connectionString })
 const db = drizzle(pool, { schema })
+
+// El script usa su propio pool (no puede importar `@/lib/db`, que es
+// `server-only`), así que replicamos `withTenant` sobre este `db`: bajo RLS
+// todo INSERT/DELETE scoped necesita el GUC fijado en su misma tx.
+type TxDb = Parameters<Parameters<typeof db.transaction>[0]>[0]
+async function withTenant<T>(
+  salonId: number,
+  fn: (tx: TxDb) => Promise<T>,
+): Promise<T> {
+  return db.transaction(async (tx) => {
+    await tx.execute(
+      sql`select set_config('app.current_salon_id', ${String(salonId)}, true)`,
+    )
+    return fn(tx)
+  })
+}
 
 const TZ = 'Europe/Madrid'
 
@@ -232,22 +249,30 @@ function toUtc(yyyyMmDd: string, hour: number, minute = 0): Date {
 }
 
 async function clean(): Promise<void> {
-  await db.delete(schema.booking_notifications)
-  await db.delete(schema.booking_status_events)
-  await db.delete(schema.booking_tokens)
-  await db.delete(schema.booking_items)
-  await db.delete(schema.bookings)
-  await db.delete(schema.employee_services)
-  await db.delete(schema.employee_recurring_breaks)
-  await db.delete(schema.employee_weekly_schedule)
-  await db.delete(schema.employee_time_off)
-  await db.delete(schema.salon_closures)
-  await db.delete(schema.salon_working_hours)
-  await db.delete(schema.clients)
-  await db.delete(schema.employees)
-  await db.delete(schema.services)
-  await db.delete(schema.app_users)
-  await db.delete(schema.salons)
+  // Bajo RLS un DELETE sin GUC afecta 0 filas. Enumerar salones es SELECT
+  // público (sin GUC); borramos cada salón dentro de su propio withTenant. La
+  // fila de `salons` también se borra ahí (su policy DELETE exige `id = GUC`).
+  const existing = await db.select({ id: schema.salons.id }).from(schema.salons)
+  for (const { id: salonId } of existing) {
+    await withTenant(salonId, async (tx) => {
+      await tx.delete(schema.booking_notifications)
+      await tx.delete(schema.booking_status_events)
+      await tx.delete(schema.booking_tokens)
+      await tx.delete(schema.booking_items)
+      await tx.delete(schema.bookings)
+      await tx.delete(schema.employee_services)
+      await tx.delete(schema.employee_recurring_breaks)
+      await tx.delete(schema.employee_weekly_schedule)
+      await tx.delete(schema.employee_time_off)
+      await tx.delete(schema.salon_closures)
+      await tx.delete(schema.salon_working_hours)
+      await tx.delete(schema.clients)
+      await tx.delete(schema.employees)
+      await tx.delete(schema.services)
+      await tx.delete(schema.app_users)
+      await tx.delete(schema.salons)
+    })
+  }
   // Postgres no necesita reset de secuencia tras el DELETE (a diferencia de
   // sqlite_sequence): las columnas IDENTITY siguen contando; los IDs no son
   // datos de negocio.
@@ -265,228 +290,232 @@ async function main(): Promise<void> {
     .values({ ...SALON, settings: {} })
     .returning()
 
-  await db.insert(schema.salon_working_hours).values(
-    WORKING_HOURS.map((wh) => ({
-      salon_id: salon.id,
-      ...wh,
-    })),
-  )
-
-  const serviceRows = await db
-    .insert(schema.services)
-    .values(
-      SERVICES.map((s, idx) => ({
-        salon_id: salon.id,
-        name: s.name,
-        slug: s.slug,
-        description: s.description,
-        duration_minutes: s.duration_minutes,
-        price_cents: s.price_cents,
-        color_hex: s.color_hex,
-        is_active: true,
-        display_order: idx,
-      })),
-    )
-    .returning()
-
-  const employeeIds: number[] = []
-  for (const e of EMPLOYEES) {
-    const [emp] = await db
-      .insert(schema.employees)
-      .values({
-        salon_id: salon.id,
-        display_name: e.display_name,
-        slug: e.slug,
-        bio: e.bio,
-        color_hex: e.color_hex,
-        display_order: e.display_order,
-        is_active: true,
-      })
-      .returning()
-    employeeIds.push(emp.id)
-
-    if (e.schedule.length) {
-      await db.insert(schema.employee_weekly_schedule).values(
-        e.schedule.map((s) => ({
-          employee_id: emp.id,
-          weekday: s.weekday,
-          starts_at: s.starts_at,
-          ends_at: s.ends_at,
-          effective_from: effectiveFrom,
-        })),
-      )
-    }
-
-    if (e.breaks.length) {
-      await db.insert(schema.employee_recurring_breaks).values(
-        e.breaks.map((b) => ({
-          employee_id: emp.id,
-          weekday: b.weekday,
-          starts_at: b.starts_at,
-          ends_at: b.ends_at,
-          label: b.label,
-          effective_from: effectiveFrom,
-        })),
-      )
-    }
-
-    await db.insert(schema.employee_services).values(
-      e.serviceIdx.map((idx) => ({
-        employee_id: emp.id,
-        service_id: serviceRows[idx].id,
-      })),
-    )
-  }
-
-  const clientRows = await db
-    .insert(schema.clients)
-    .values(
-      CLIENTS.map((c) => ({
-        salon_id: salon.id,
-        display_name: c.display_name,
-        email: c.email,
-        phone: c.phone,
-        marketing_consent: c.marketing_consent,
-        internal_notes: c.internal_notes,
-      })),
-    )
-    .returning()
-
-  type Plan = { offset: number; count: number }
-  const plan: Plan[] = [
-    { offset: -1, count: 1 },
-    { offset: 0, count: 4 },
-    { offset: 1, count: 3 },
-    { offset: 2, count: 2 },
-    { offset: 3, count: 2 },
-    { offset: 5, count: 1 },
-    { offset: 7, count: 1 },
-  ]
-
+  // salons INSERT es policy abierta (sin GUC). TODOS los hijos del salón están
+  // scoped por RLS → se insertan dentro del withTenant de este salón.
   let clientCursor = 0
   let bookingsInserted = 0
   let skipped = 0
 
-  for (const { offset, count } of plan) {
-    const ymd = shiftYmd(todayMadrid, offset)
-    const dow = isoWeekday(ymd)
+  await withTenant(salon.id, async (tx) => {
+    await tx.insert(schema.salon_working_hours).values(
+      WORKING_HOURS.map((wh) => ({
+        salon_id: salon.id,
+        ...wh,
+      })),
+    )
 
-    if (dow === 7) {
-      skipped += count
-      continue
-    }
+    const serviceRows = await tx
+      .insert(schema.services)
+      .values(
+        SERVICES.map((s, idx) => ({
+          salon_id: salon.id,
+          name: s.name,
+          slug: s.slug,
+          description: s.description,
+          duration_minutes: s.duration_minutes,
+          price_cents: s.price_cents,
+          color_hex: s.color_hex,
+          is_active: true,
+          display_order: idx,
+        })),
+      )
+      .returning()
 
-    const available = EMPLOYEES.map((emp, idx) => ({
-      emp,
-      idx,
-      sched: emp.schedule.find((s) => s.weekday === dow),
-    })).filter((x) => x.sched !== undefined)
+    const employeeIds: number[] = []
+    for (const e of EMPLOYEES) {
+      const [emp] = await tx
+        .insert(schema.employees)
+        .values({
+          salon_id: salon.id,
+          display_name: e.display_name,
+          slug: e.slug,
+          bio: e.bio,
+          color_hex: e.color_hex,
+          display_order: e.display_order,
+          is_active: true,
+        })
+        .returning()
+      employeeIds.push(emp.id)
 
-    if (!available.length) {
-      skipped += count
-      continue
-    }
-
-    for (let i = 0; i < count; i++) {
-      const slot = available[i % available.length]
-      const empData = slot.emp
-      const empId = employeeIds[slot.idx]
-      const openHour = parseInt(slot.sched!.starts_at.slice(0, 2), 10)
-      const closeHour = parseInt(slot.sched!.ends_at.slice(0, 2), 10)
-
-      const svcIdx =
-        empData.serviceIdx[(i + offset + 7) % empData.serviceIdx.length]
-      const svc = SERVICES[svcIdx]
-      const svcId = serviceRows[svcIdx].id
-
-      const startIdx = i % empData.slots.length
-      let hour: number | null = null
-      for (let j = 0; j < empData.slots.length; j++) {
-        const candidate = empData.slots[(startIdx + j) % empData.slots.length]
-        const endHour = candidate + Math.ceil(svc.duration_minutes / 60)
-        if (candidate >= openHour && endHour <= closeHour) {
-          hour = candidate
-          break
-        }
+      if (e.schedule.length) {
+        await tx.insert(schema.employee_weekly_schedule).values(
+          e.schedule.map((s) => ({
+            employee_id: emp.id,
+            weekday: s.weekday,
+            starts_at: s.starts_at,
+            ends_at: s.ends_at,
+            effective_from: effectiveFrom,
+          })),
+        )
       }
-      if (hour === null) {
-        skipped++
+
+      if (e.breaks.length) {
+        await tx.insert(schema.employee_recurring_breaks).values(
+          e.breaks.map((b) => ({
+            employee_id: emp.id,
+            weekday: b.weekday,
+            starts_at: b.starts_at,
+            ends_at: b.ends_at,
+            label: b.label,
+            effective_from: effectiveFrom,
+          })),
+        )
+      }
+
+      await tx.insert(schema.employee_services).values(
+        e.serviceIdx.map((idx) => ({
+          employee_id: emp.id,
+          service_id: serviceRows[idx].id,
+        })),
+      )
+    }
+
+    const clientRows = await tx
+      .insert(schema.clients)
+      .values(
+        CLIENTS.map((c) => ({
+          salon_id: salon.id,
+          display_name: c.display_name,
+          email: c.email,
+          phone: c.phone,
+          marketing_consent: c.marketing_consent,
+          internal_notes: c.internal_notes,
+        })),
+      )
+      .returning()
+
+    type Plan = { offset: number; count: number }
+    const plan: Plan[] = [
+      { offset: -1, count: 1 },
+      { offset: 0, count: 4 },
+      { offset: 1, count: 3 },
+      { offset: 2, count: 2 },
+      { offset: 3, count: 2 },
+      { offset: 5, count: 1 },
+      { offset: 7, count: 1 },
+    ]
+
+    for (const { offset, count } of plan) {
+      const ymd = shiftYmd(todayMadrid, offset)
+      const dow = isoWeekday(ymd)
+
+      if (dow === 7) {
+        skipped += count
         continue
       }
 
-      const startsAt = toUtc(ymd, hour, 0)
-      const endsAt = new Date(
-        startsAt.getTime() + svc.duration_minutes * 60_000,
-      )
+      const available = EMPLOYEES.map((emp, idx) => ({
+        emp,
+        idx,
+        sched: emp.schedule.find((s) => s.weekday === dow),
+      })).filter((x) => x.sched !== undefined)
 
-      let status: string
-      if (offset < 0) {
-        status = 'completed'
-      } else if (offset > 0) {
-        status = i === count - 1 && offset === 1 ? 'pending' : 'confirmed'
-      } else if (endsAt.getTime() <= now.getTime()) {
-        status = 'completed'
-      } else if (startsAt.getTime() <= now.getTime()) {
-        status = 'in_progress'
-      } else {
-        status = 'confirmed'
+      if (!available.length) {
+        skipped += count
+        continue
       }
 
-      if (offset === 2 && i === 1) {
-        status = 'cancelled_client'
-      }
+      for (let i = 0; i < count; i++) {
+        const slot = available[i % available.length]
+        const empData = slot.emp
+        const empId = employeeIds[slot.idx]
+        const openHour = parseInt(slot.sched!.starts_at.slice(0, 2), 10)
+        const closeHour = parseInt(slot.sched!.ends_at.slice(0, 2), 10)
 
-      const clientId = clientRows[clientCursor % clientRows.length].id
-      clientCursor++
+        const svcIdx =
+          empData.serviceIdx[(i + offset + 7) % empData.serviceIdx.length]
+        const svc = SERVICES[svcIdx]
+        const svcId = serviceRows[svcIdx].id
 
-      const confirmedAt =
-        status === 'completed' ||
-        status === 'in_progress' ||
-        status === 'confirmed'
-          ? new Date(startsAt.getTime() - 60 * 60_000)
+        const startIdx = i % empData.slots.length
+        let hour: number | null = null
+        for (let j = 0; j < empData.slots.length; j++) {
+          const candidate = empData.slots[(startIdx + j) % empData.slots.length]
+          const endHour = candidate + Math.ceil(svc.duration_minutes / 60)
+          if (candidate >= openHour && endHour <= closeHour) {
+            hour = candidate
+            break
+          }
+        }
+        if (hour === null) {
+          skipped++
+          continue
+        }
+
+        const startsAt = toUtc(ymd, hour, 0)
+        const endsAt = new Date(
+          startsAt.getTime() + svc.duration_minutes * 60_000,
+        )
+
+        let status: string
+        if (offset < 0) {
+          status = 'completed'
+        } else if (offset > 0) {
+          status = i === count - 1 && offset === 1 ? 'pending' : 'confirmed'
+        } else if (endsAt.getTime() <= now.getTime()) {
+          status = 'completed'
+        } else if (startsAt.getTime() <= now.getTime()) {
+          status = 'in_progress'
+        } else {
+          status = 'confirmed'
+        }
+
+        if (offset === 2 && i === 1) {
+          status = 'cancelled_client'
+        }
+
+        const clientId = clientRows[clientCursor % clientRows.length].id
+        clientCursor++
+
+        const confirmedAt =
+          status === 'completed' ||
+          status === 'in_progress' ||
+          status === 'confirmed'
+            ? new Date(startsAt.getTime() - 60 * 60_000)
+            : null
+        const cancelledAt = status.startsWith('cancelled') ? new Date() : null
+        const cancellationReason = status.startsWith('cancelled')
+          ? 'El cliente no podrá asistir'
           : null
-      const cancelledAt = status.startsWith('cancelled') ? new Date() : null
-      const cancellationReason = status.startsWith('cancelled')
-        ? 'El cliente no podrá asistir'
-        : null
 
-      const [booking] = await db
-        .insert(schema.bookings)
-        .values({
+        const [booking] = await tx
+          .insert(schema.bookings)
+          .values({
+            salon_id: salon.id,
+            client_id: clientId,
+            starts_at: startsAt,
+            ends_at: endsAt,
+            status,
+            source: 'admin',
+            version: 0,
+            confirmed_at: confirmedAt,
+            cancelled_at: cancelledAt,
+            cancellation_reason: cancellationReason,
+          })
+          .returning()
+
+        await tx.insert(schema.booking_items).values({
+          booking_id: booking.id,
           salon_id: salon.id,
-          client_id: clientId,
+          position: 0,
+          service_id: svcId,
+          employee_id: empId,
           starts_at: startsAt,
           ends_at: endsAt,
-          status,
-          source: 'admin',
-          version: 0,
-          confirmed_at: confirmedAt,
-          cancelled_at: cancelledAt,
-          cancellation_reason: cancellationReason,
+          service_snapshot: {
+            name: svc.name,
+            slug: svc.slug,
+            duration_minutes: svc.duration_minutes,
+            price_cents: svc.price_cents,
+            color_hex: svc.color_hex,
+          },
+          booking_status: status,
         })
-        .returning()
 
-      await db.insert(schema.booking_items).values({
-        booking_id: booking.id,
-        salon_id: salon.id,
-        position: 0,
-        service_id: svcId,
-        employee_id: empId,
-        starts_at: startsAt,
-        ends_at: endsAt,
-        service_snapshot: {
-          name: svc.name,
-          slug: svc.slug,
-          duration_minutes: svc.duration_minutes,
-          price_cents: svc.price_cents,
-          color_hex: svc.color_hex,
-        },
-        booking_status: status,
-      })
-
-      bookingsInserted++
+        bookingsInserted++
+      }
     }
-  }
+  })
 
   process.stdout.write(
     [

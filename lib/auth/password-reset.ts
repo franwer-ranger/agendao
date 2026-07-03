@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, eq, isNull, gt } from 'drizzle-orm'
+import { and, eq, isNull, gt, sql } from 'drizzle-orm'
 import { createHash, randomBytes } from 'node:crypto'
 
 import { db } from '@/lib/db'
@@ -82,6 +82,7 @@ export async function requestPasswordReset(
 export type ValidatedResetToken = {
   userId: string
   tokenRowId: number
+  salonId: number
 }
 
 export async function validateResetToken(
@@ -89,13 +90,22 @@ export async function validateResetToken(
 ): Promise<ValidatedResetToken | null> {
   if (!plaintext) return null
   const tokenHash = sha256(plaintext)
+  // Join a app_users para resolver el salon_id del usuario (la policy SELECT de
+  // app_users es `using(true)`, así que funciona sin GUC). Lo necesita
+  // consumeResetToken para fijar el tenant del UPDATE de password bajo RLS.
+  // auth_password_reset_tokens no lleva RLS (ver 0003_rls.sql).
   const row = (
     await db
       .select({
         id: auth_password_reset_tokens.id,
         user_id: auth_password_reset_tokens.user_id,
+        salon_id: app_users.salon_id,
       })
       .from(auth_password_reset_tokens)
+      .innerJoin(
+        app_users,
+        eq(app_users.id, auth_password_reset_tokens.user_id),
+      )
       .where(
         and(
           eq(auth_password_reset_tokens.token_hash, tokenHash),
@@ -106,7 +116,7 @@ export async function validateResetToken(
       .limit(1)
   )[0]
   if (!row) return null
-  return { userId: row.user_id, tokenRowId: row.id }
+  return { userId: row.user_id, tokenRowId: row.id, salonId: row.salon_id }
 }
 
 export type ConsumeResetTokenResult =
@@ -123,6 +133,10 @@ export async function consumeResetToken(
   try {
     const hashed = await hashPassword(newPassword)
     await db.transaction(async (tx) => {
+      // GUC como PRIMER statement: el UPDATE de app_users está scoped por RLS.
+      await tx.execute(
+        sql`select set_config('app.current_salon_id', ${String(validated.salonId)}, true)`,
+      )
       await tx
         .update(app_users)
         .set({ password_hash: hashed })

@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { randomUUID } from 'node:crypto'
 
 import { hashPassword } from '@/lib/auth/password'
@@ -84,6 +84,14 @@ export async function performSetup(
     const salonRow = insertedSalon[0]
     if (!salonRow) throw new Error('No se pudo crear el salón')
     const salonId = salonRow.id
+
+    // Chicken-egg: la policy INSERT de salons es abierta (`with check(true)`), así
+    // que el salón se creó sin GUC. Ahora fijamos el tenant recién creado en ESTA
+    // misma tx para que el resto de inserts (admin, servicios, empleados, horarios,
+    // todos scoped por RLS) pasen el `with check`.
+    await tx.execute(
+      sql`select set_config('app.current_salon_id', ${String(salonId)}, true)`,
+    )
 
     const hoursRows = payload.salon.workingHours.days
       .filter((d) => !d.closed && d.opens_at && d.closes_at)

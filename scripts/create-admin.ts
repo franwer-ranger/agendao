@@ -1,5 +1,5 @@
 import argon2 from 'argon2'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { randomUUID } from 'node:crypto'
 import { Pool } from 'pg'
@@ -79,14 +79,21 @@ async function main(): Promise<void> {
     const hash = await argon2.hash(password, ARGON_OPTIONS)
     const id = randomUUID()
 
-    await db.insert(schema.app_users).values({
-      id,
-      salon_id: salon!.id,
-      role: 'admin',
-      email,
-      password_hash: hash,
-      display_name: email.split('@')[0]!,
-      is_active: true,
+    // app_users INSERT está scoped por GUC bajo RLS (0003_rls.sql). Fijamos el
+    // tenant del salón destino en la misma tx que el insert. Sin rol BYPASSRLS.
+    await db.transaction(async (tx) => {
+      await tx.execute(
+        sql`select set_config('app.current_salon_id', ${String(salon!.id)}, true)`,
+      )
+      await tx.insert(schema.app_users).values({
+        id,
+        salon_id: salon!.id,
+        role: 'admin',
+        email,
+        password_hash: hash,
+        display_name: email.split('@')[0]!,
+        is_active: true,
+      })
     })
 
     process.stdout.write(

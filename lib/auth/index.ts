@@ -6,6 +6,7 @@ import { z } from 'zod'
 
 import { db } from '@/lib/db'
 import { app_users } from '@/lib/db/schema'
+import { withTenant } from '@/lib/db/tenant'
 
 import { authConfig } from './config'
 import { verifyPassword } from './password'
@@ -46,10 +47,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (!ok) return null
 
         try {
-          await db
-            .update(app_users)
-            .set({ last_login_at: new Date() })
-            .where(eq(app_users.id, user.id))
+          // app_users UPDATE está scoped por GUC bajo RLS: sin tenant fijado
+          // afectaría 0 filas. El salon_id sale del select de arriba.
+          await withTenant(user.salon_id, (tx) =>
+            tx
+              .update(app_users)
+              .set({ last_login_at: new Date() })
+              .where(eq(app_users.id, user.id)),
+          )
         } catch {
           // ignore — login should not fail on this side effect
         }
