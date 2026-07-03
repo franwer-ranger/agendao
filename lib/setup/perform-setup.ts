@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 
 import { hashPassword } from '@/lib/auth/password'
 import { db } from '@/lib/db'
+import { withTenant } from '@/lib/db/tenant'
 import {
   app_users,
   employee_services,
@@ -202,10 +203,12 @@ export async function performSetup(
   if (logoFile && logoFile.size > 0) {
     try {
       const logoPath = await uploadSalonLogo(result.salonId, logoFile)
-      await db
-        .update(salons)
-        .set({ logo_path: logoPath })
-        .where(eq(salons.id, result.salonId))
+      await withTenant(result.salonId, (tx) =>
+        tx
+          .update(salons)
+          .set({ logo_path: logoPath })
+          .where(eq(salons.id, result.salonId)),
+      )
     } catch (err) {
       console.warn('[setup] no se pudo subir el logo:', err)
     }

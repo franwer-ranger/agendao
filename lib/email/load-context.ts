@@ -20,12 +20,10 @@ type TxDb = Parameters<Parameters<typeof db.transaction>[0]>[0]
 // recordatorio, cancelación), así que el view-model es el mismo.
 //
 // `salonId` es necesario para fijar el tenant (bajo RLS, sin GUC estas queries
-// devuelven 0 filas → null). Es opcional sólo para no romper la compilación de
-// los callers todavía-sin-adaptar (triggers de email, 17b/17c): sin salonId la
-// función corre sin GUC y devuelve null (fail-closed), igual que hoy bajo RLS.
+// devuelven 0 filas → null). Es obligatorio: todos los callers ya lo pasan.
 export async function loadBookingEmailContext(
   bookingId: number,
-  salonId?: number,
+  salonId: number,
   tx?: TxDb,
 ): Promise<BookingEmailContext | null> {
   const run = async (t: TxDb): Promise<BookingEmailContext | null> => {
@@ -109,11 +107,7 @@ export async function loadBookingEmailContext(
     }
   }
 
-  if (tx) return run(tx)
-  if (salonId != null) return withTenant(salonId, run)
-  // Sin tenant fijado (caller aún sin adaptar): sin GUC, bajo RLS las queries
-  // devuelven 0 filas → null. La tx vacía mantiene los tipos correctos.
-  return db.transaction(run)
+  return tx ? run(tx) : withTenant(salonId, run)
 }
 
 // Carga solo lo mínimo del salón para tomar la decisión de notificación. Útil
