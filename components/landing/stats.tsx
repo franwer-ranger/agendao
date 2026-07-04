@@ -73,10 +73,25 @@ function useCountUp(target: number, active: boolean) {
 function StatItem({ stat }: { stat: Stat }) {
   const ref = useRef<HTMLDivElement>(null)
   const [active, setActive] = useState(false)
+  // Si el observer nunca dispara (o el elemento ya pasó por encima del
+  // viewport antes de que se registrara, p. ej. tras un scroll muy rápido
+  // o una restauración de scroll), este fallback pinta directamente el
+  // valor final para que el usuario nunca vea "0/7".
+  const [settled, setSettled] = useState(false)
 
   useEffect(() => {
     const node = ref.current
     if (!node) return
+
+    // Si al montar el elemento ya quedó por encima del viewport (scroll
+    // muy rápido, restauración de scroll del navegador, etc.), el
+    // IntersectionObserver puede no llegar a disparar nunca: fijamos el
+    // valor final directamente en vez de depender del count-up.
+    const rect = node.getBoundingClientRect()
+    if (rect.top < 0) {
+      setSettled(true)
+      return
+    }
 
     const observer = new IntersectionObserver(
       ([entry]) => {
@@ -85,19 +100,20 @@ function StatItem({ stat }: { stat: Stat }) {
           observer.disconnect()
         }
       },
-      { threshold: 0.4 },
+      { threshold: 0, rootMargin: '0px 0px 15% 0px' },
     )
     observer.observe(node)
     return () => observer.disconnect()
   }, [])
 
   const value = useCountUp(stat.value, active)
+  const displayValue = settled ? stat.value : value
 
   return (
     <div ref={ref} className="px-6 py-6 text-center md:py-2">
       <p className="font-[family-name:var(--font-display)] text-[clamp(2.5rem,6vw,4rem)] leading-none font-semibold tracking-[-0.03em] text-white tabular-nums">
         {stat.prefix}
-        {value}
+        {displayValue}
         {stat.suffix}
       </p>
       <p className="mx-auto mt-3 max-w-[16rem] text-sm text-[var(--ink-text-secondary)]">

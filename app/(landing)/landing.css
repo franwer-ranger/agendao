@@ -58,7 +58,7 @@
 /* Anclas del nav (#funciones, #como-funciona, #precio, #faq): deja aire para
    que el nav flotante no tape el inicio de la sección al hacer scroll. */
 .landing-root section[id] {
-  scroll-margin-top: 6rem;
+  scroll-margin-top: 8rem;
 }
 
 /* Selección de texto con el acento de marca en vez del azul por defecto */

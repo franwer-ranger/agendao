@@ -17,7 +17,7 @@ const INTRO_DELAYS_MS = {
 
 export function Hero() {
   return (
-    <section className="band-dark pt-32 pb-20 md:pt-44 md:pb-28">
+    <section className="band-dark overflow-clip pt-32 pb-20 md:pt-44 md:pb-28">
       <Container>
         <div className="grid items-center gap-14 lg:grid-cols-[1.05fr_1fr] lg:gap-10">
           <div>
@@ -31,10 +31,12 @@ export function Hero() {
 
             <h1 className="font-[family-name:var(--font-display)] tracking-[-0.03em]">
               <span
-                className="hero-intro-item block text-[clamp(2.75rem,8vw,7rem)] leading-[0.98] font-semibold text-white"
+                className="hero-intro-item block text-balance text-[clamp(2.75rem,5.5vw,5.25rem)] leading-[0.98] font-semibold text-white"
                 style={{ animationDelay: `${INTRO_DELAYS_MS.headline}ms` }}
               >
-                Tu agenda se llena sola.
+                Tu agenda
+                <br />
+                se llena sola.
               </span>
               <span
                 className="hero-intro-item block text-[clamp(1.5rem,4.2vw,2.75rem)] leading-[1.1] font-medium text-[var(--ink-text-secondary)]"
