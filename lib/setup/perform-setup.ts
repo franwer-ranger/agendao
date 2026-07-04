@@ -18,10 +18,6 @@ import { uploadSalonLogo } from '@/lib/salons/storage'
 import { resolveUniqueServiceSlug } from '@/lib/services/slug'
 import { salonToday } from '@/lib/time'
 
-import {
-  invalidateConfiguredCache,
-  isInstanceConfigured,
-} from './is-configured'
 import { setupPayloadSchema } from './schema'
 
 export type SetupResult = {
@@ -38,10 +34,6 @@ export async function performSetup(
   payloadRaw: unknown,
   logoFile: File | null,
 ): Promise<SetupResult> {
-  if (await isInstanceConfigured()) {
-    throw new Error('La instancia ya está configurada.')
-  }
-
   const parsed = setupPayloadSchema.safeParse(payloadRaw)
   if (!parsed.success) {
     const issues = parsed.error.issues
@@ -80,6 +72,7 @@ export async function performSetup(
         cancellation_policy_text:
           payload.salon.cancellation.cancellation_policy_text,
         terms_text: payload.salon.legal.terms_text,
+        onboarding_completed_at: new Date(),
       })
       .returning({ id: salons.id })
     const salonRow = insertedSalon[0]
@@ -213,8 +206,6 @@ export async function performSetup(
       console.warn('[setup] no se pudo subir el logo:', err)
     }
   }
-
-  invalidateConfiguredCache()
 
   return result
 }

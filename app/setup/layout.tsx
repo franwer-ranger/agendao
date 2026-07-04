@@ -1,7 +1,8 @@
 import { redirect } from 'next/navigation'
 
 import { Toaster } from '@/components/ui/sonner'
-import { isInstanceConfigured } from '@/lib/setup/is-configured'
+import { auth } from '@/lib/auth'
+import { isSalonOnboarded } from '@/lib/setup/is-configured'
 
 export const dynamic = 'force-dynamic'
 
@@ -10,8 +11,9 @@ export default async function SetupLayout({
 }: {
   children: React.ReactNode
 }) {
-  if (await isInstanceConfigured()) {
-    redirect('/login')
+  const session = await auth()
+  if (session?.user && (await isSalonOnboarded(session.user.salonId))) {
+    redirect('/admin')
   }
 
   return (

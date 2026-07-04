@@ -1,7 +1,6 @@
-import { notFound, redirect } from 'next/navigation'
+import { notFound } from 'next/navigation'
 import { getSalonBySlug } from '@/lib/salons/queries'
 import { Toaster } from '@/components/ui/sonner'
-import { isInstanceConfigured } from '@/lib/setup/is-configured'
 
 // Resolución del salón por slug. Servimos siempre dinámico: el slug viene de
 // la URL pública y queremos un 404 inmediato si no existe (el cache de
@@ -15,10 +14,6 @@ export default async function SalonLayout({
   children: React.ReactNode
   params: Promise<{ salonSlug: string }>
 }) {
-  if (!(await isInstanceConfigured())) {
-    redirect('/setup')
-  }
-
   const { salonSlug } = await params
   const salon = await getSalonBySlug(salonSlug)
   if (!salon) notFound()
