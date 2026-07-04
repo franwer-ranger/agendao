@@ -29,8 +29,7 @@ WORKDIR /app
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     PORT=3000 \
-    HOSTNAME=0.0.0.0 \
-    DATABASE_URL=/app/data/dev.db
+    HOSTNAME=0.0.0.0
 
 RUN groupadd --system --gid 1001 nodejs \
  && useradd  --system --uid 1001 --gid nodejs nextjs

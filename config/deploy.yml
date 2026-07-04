@@ -38,13 +38,12 @@ env:
     PORT: '3000'
     HOSTNAME: 0.0.0.0
     NEXT_TELEMETRY_DISABLED: '1'
-    # Override del default del Dockerfile (/app/data/dev.db).
-    DATABASE_URL: /app/data/prod.db
     # APP_URL lo lee lib/storage.ts para construir URLs absolutas.
     APP_URL: https://app.agendao.xyz
-    # UPLOADS_DIR vive en el mismo volumen persistente que el .db.
+    # UPLOADS_DIR vive en el volumen persistente del host.
     UPLOADS_DIR: /app/data/uploads
   secret:
+    - DATABASE_URL
     - RESEND_API_KEY
     - EMAIL_FROM
     - CRON_SECRET

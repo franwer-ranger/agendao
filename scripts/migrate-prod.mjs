@@ -1,67 +1,76 @@
-import Database from 'better-sqlite3'
+import { Client } from 'pg'
 import { createHash } from 'node:crypto'
-import { mkdirSync, readFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 
-// Réplica mínima de drizzle-orm/better-sqlite3/migrator que solo depende
-// de better-sqlite3. Necesario porque Next standalone bundlea drizzle-orm
-// dentro de server.js y no lo deja accesible como paquete en node_modules.
+// Réplica mínima del migrator drizzle-orm/node-postgres que solo depende de `pg`.
+// Necesario porque Next standalone bundlea drizzle-orm dentro de server.js y no
+// lo deja accesible como paquete en node_modules; `pg` sí queda traceado (lo
+// importa lib/db). Mantiene el MISMO esquema de tracking que el migrator real
+// (schema "drizzle", tabla "__drizzle_migrations", created_at = journal.when en
+// ms) para no re-aplicar migraciones ya corridas por `npm run db:migrate`.
 
-const dbPath = process.env.DATABASE_URL ?? '/app/data/dev.db'
+const connectionString = process.env.DATABASE_URL
+if (!connectionString) {
+  throw new Error('DATABASE_URL no está definida')
+}
+
 const migrationsDir = './drizzle'
-
-mkdirSync(dirname(dbPath), { recursive: true })
-
-const sqlite = new Database(dbPath)
-sqlite.pragma('journal_mode = WAL')
-sqlite.pragma('foreign_keys = ON')
-
-sqlite.exec(`
-  CREATE TABLE IF NOT EXISTS __drizzle_migrations (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    hash text NOT NULL,
-    created_at numeric
-  )
-`)
 
 const journal = JSON.parse(
   readFileSync(join(migrationsDir, 'meta/_journal.json'), 'utf8'),
 )
 
-const applied = new Set(
-  sqlite
-    .prepare('SELECT hash FROM __drizzle_migrations')
-    .all()
-    .map((row) => row.hash),
-)
+const client = new Client({ connectionString })
+await client.connect()
 
-const insertMigration = sqlite.prepare(
-  'INSERT INTO __drizzle_migrations (hash, created_at) VALUES (?, ?)',
-)
+try {
+  await client.query('create schema if not exists "drizzle"')
+  await client.query(
+    `create table if not exists "drizzle"."__drizzle_migrations" (
+       id serial primary key,
+       hash text not null,
+       created_at bigint
+     )`,
+  )
 
-let appliedCount = 0
-for (const entry of journal.entries) {
-  const sql = readFileSync(join(migrationsDir, `${entry.tag}.sql`), 'utf8')
-  const hash = createHash('sha256').update(sql).digest('hex')
+  const { rows } = await client.query(
+    'select created_at from "drizzle"."__drizzle_migrations" order by created_at desc limit 1',
+  )
+  const lastMillis = rows[0] ? Number(rows[0].created_at) : -1
 
-  if (applied.has(hash)) continue
+  let appliedCount = 0
+  for (const entry of journal.entries) {
+    if (entry.when <= lastMillis) continue
 
-  const statements = sql
-    .split('--> statement-breakpoint')
-    .map((s) => s.trim())
-    .filter(Boolean)
+    const sql = readFileSync(join(migrationsDir, `${entry.tag}.sql`), 'utf8')
+    const hash = createHash('sha256').update(sql).digest('hex')
 
-  const tx = sqlite.transaction(() => {
-    for (const stmt of statements) sqlite.exec(stmt)
-    insertMigration.run(hash, Date.now())
-  })
+    const statements = sql
+      .split('--> statement-breakpoint')
+      .map((s) => s.trim())
+      .filter(Boolean)
 
-  tx()
-  appliedCount++
-  console.warn(`Applied migration: ${entry.tag}`)
+    await client.query('begin')
+    try {
+      for (const stmt of statements) await client.query(stmt)
+      await client.query(
+        'insert into "drizzle"."__drizzle_migrations" (hash, created_at) values ($1, $2)',
+        [hash, entry.when],
+      )
+      await client.query('commit')
+    } catch (err) {
+      await client.query('rollback')
+      throw err
+    }
+
+    appliedCount++
+    console.warn(`Applied migration: ${entry.tag}`)
+  }
+
+  console.warn(
+    `Migrations done (${appliedCount} new, ${journal.entries.length} total)`,
+  )
+} finally {
+  await client.end()
 }
-
-sqlite.close()
-console.warn(
-  `Migrations done (${appliedCount} new, ${journal.entries.length} total) at ${dbPath}`,
-)
