@@ -18,6 +18,12 @@ RUN npm install --no-audit --no-fund
 FROM node:20-slim AS builder
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
+# `next build` importa lib/db al recolectar page data y ese módulo valida
+# DATABASE_URL en tiempo de carga. En build no hay DB (todas las páginas que la
+# usan son force-dynamic, así que no se ejecuta ninguna query) — este placeholder
+# solo satisface la validación de import. El valor real lo inyecta Kamal en
+# runtime; la stage `runner` no define DATABASE_URL, así que no se filtra nada.
+ENV DATABASE_URL="postgresql://build:build@localhost:5432/build"
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build

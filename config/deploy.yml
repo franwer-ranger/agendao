@@ -8,12 +8,12 @@ servers:
   web:
     hosts:
       - 65.109.12.199
-    # Una sola réplica: SQLite no tolera dos escritores sobre el mismo .db.
-    # Ver boot.limit abajo para la garantía durante rolling deploys.
+    # Un solo host: los uploads viven en el volumen local del server
+    # (UPLOADS_DIR), así que dividir el tráfico entre varios hosts partiría
+    # los ficheros subidos. Ver boot.limit abajo para el rolling deploy.
 
 # Kamal 2.x reemplaza Traefik por kamal-proxy (HTTP/2, Let's Encrypt automático).
-# OJO: con el dominio aún sin comprar, `kamal setup` fallará al emitir el cert.
-# Hasta tener dominio real, ver la sección "Preview HTTP sin dominio" del README.
+# app.agendao.xyz ya apunta a este host, así que el cert se emite solo en setup.
 proxy:
   ssl: true
   host: app.agendao.xyz
@@ -52,7 +52,8 @@ env:
 volumes:
   - '/var/lib/agendao/data:/app/data'
 
-# Crítico para SQLite: garantiza stop-then-start.
+# limit 1 = despliega de uno en uno; con un único host garantiza stop-then-start
+# para que dos contenedores no monten el mismo volumen de uploads a la vez.
 boot:
   limit: 1
   wait: 2
