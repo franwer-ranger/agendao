@@ -1,0 +1,87 @@
+/**
+ * Estilos de la banda "Funciones" (bento grid) y del mini-mockup compartido
+ * por sus 5 cards. Scope: solo clases con prefijo `features-` para no
+ * colisionar con otras secciones. Importado únicamente desde
+ * components/landing/features.tsx.
+ */
+
+.features-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+@media (min-width: 768px) {
+  .features-grid {
+    grid-template-columns: repeat(6, 1fr);
+    grid-template-areas:
+      'reservas reservas reservas reservas dia dia'
+      'reservas reservas reservas reservas dia dia'
+      'recordatorios recordatorios pagina pagina equipo equipo';
+    gap: 1.25rem;
+  }
+}
+
+.features-card {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  background: var(--mist);
+  border: 1px solid var(--line);
+  border-radius: 1.25rem;
+  padding: 1.75rem;
+  transition:
+    transform 0.25s ease,
+    box-shadow 0.25s ease,
+    border-color 0.25s ease;
+}
+
+.features-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 40px -24px rgba(11, 12, 14, 0.18);
+  border-color: rgba(11, 12, 14, 0.14);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .features-card {
+    transition: none;
+  }
+
+  .features-card:hover {
+    transform: none;
+  }
+}
+
+.features-card--reservas {
+  grid-area: reservas;
+}
+
+.features-card--dia {
+  grid-area: dia;
+}
+
+.features-card--recordatorios {
+  grid-area: recordatorios;
+}
+
+.features-card--pagina {
+  grid-area: pagina;
+}
+
+.features-card--equipo {
+  grid-area: equipo;
+}
+
+/* Superficie "pantalla" común a los mini-mockups: hace que el acento de color
+   (mint/violet/amber) resalte sobre el --mist de la card, como una captura
+   simplificada del producto. */
+.features-mock {
+  margin-top: auto;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 0.875rem;
+}
+
+.features-mock-pad {
+  padding: 0.875rem;
+}

@@ -1,0 +1,122 @@
+/**
+ * Landing comercial de Agendao — tokens, keyframes y estilos base.
+ *
+ * Todo vive bajo el scope `.landing-root` (aplicado en app/(landing)/layout.tsx)
+ * para que la landing sea inmune al theme toggle de next-themes y a los tokens
+ * shadcn/oklch de app/globals.css: aquí NO se usan --background/--foreground,
+ * solo estas variables propias.
+ *
+ * Convención de "bandas" (dirección Revolut: cortes limpios oscuro/blanco):
+ * cada sección de la landing debe ser una <section id="..."> hija directa de
+ * .landing-root con una de estas dos clases de banda:
+ *
+ *   .band-dark  — lienzo casi negro (hero, showcase, CTA final, footer)
+ *   .band-light — banda blanca de catálogo (funciones, cómo funciona, precio, FAQ)
+ *
+ * Ambas reasignan `--line` (color de bordes/divisores) al valor correcto para
+ * su banda, así que componentes compartidos (cards, pills ghost, etc.) pueden
+ * usar `border-[color:var(--line)]` sin preocuparse de en qué banda viven.
+ */
+
+.landing-root {
+  /* Superficies */
+  --ink: #0b0c0e;
+  --ink-soft: #15171a;
+  --paper: #ffffff;
+  --mist: #f4f5f7;
+
+  /* Bordes/divisores — por defecto asumimos contexto oscuro a nivel raíz */
+  --line: rgba(255, 255, 255, 0.08);
+  --line-on-light: #e7e8ea;
+
+  /* Acentos de marca — solo dentro de mockups/ilustraciones, nunca como fondo de botón */
+  --mint: #3ecf8e;
+  --violet: #6c5ce7;
+  --amber: #ffb648;
+
+  /* Texto */
+  --ink-text-secondary: rgba(255, 255, 255, 0.64);
+  --paper-text-secondary: #5b5e66;
+
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans, ui-sans-serif, system-ui, sans-serif);
+}
+
+.landing-root .band-dark {
+  background: var(--ink);
+  color: #ffffff;
+  --line: rgba(255, 255, 255, 0.08);
+}
+
+.landing-root .band-light {
+  background: var(--paper);
+  color: var(--ink);
+  --line: var(--line-on-light);
+}
+
+/* Anclas del nav (#funciones, #como-funciona, #precio, #faq): deja aire para
+   que el nav flotante no tape el inicio de la sección al hacer scroll. */
+.landing-root section[id] {
+  scroll-margin-top: 8rem;
+}
+
+/* Selección de texto con el acento de marca en vez del azul por defecto */
+.landing-root ::selection {
+  background: var(--mint);
+  color: var(--ink);
+}
+
+/* Scroll suave solo dentro de páginas de la landing, sin tocar app/layout.tsx
+   ni app/globals.css. Desactivado si el usuario prefiere menos movimiento. */
+@media (prefers-reduced-motion: no-preference) {
+  html:has(.landing-root) {
+    scroll-behavior: smooth;
+  }
+}
+
+/* ---------------------------------------------------------------------- */
+/* Keyframes compartidos                                                  */
+/* ---------------------------------------------------------------------- */
+
+@keyframes landing-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(1.25rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes landing-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes landing-float-slow {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, -1rem, 0);
+  }
+}
+
+/* Usada por <Reveal>: aplicada solo cuando el elemento entra en viewport y
+   el usuario no pidió menos movimiento (ver components/landing/reveal.tsx). */
+.landing-root .is-revealed {
+  animation: landing-fade-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-root .is-revealed {
+    animation: none;
+  }
+}

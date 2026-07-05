@@ -1,0 +1,101 @@
+/**
+ * Estilos propios del Hero (elemento firma: la agenda animada).
+ * Prefijo `hero-` en todas las clases para no colisionar con otras
+ * secciones. Importado únicamente desde components/landing/hero.tsx
+ * y components/landing/hero-agenda.tsx.
+ */
+
+/* Entrada escalonada del contenido de texto del hero (eyebrow, H1,
+   subcopy, CTAs). Mismo timing/easing que .is-revealed de landing.css,
+   pero como secuencia de carga (no ligada a IntersectionObserver). */
+@keyframes hero-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(1rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.hero-intro-item {
+  opacity: 0;
+  animation: hero-fade-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Un chip de reserva aparece en su hueco de la agenda: pequeño scale-in +
+   fade, no un simple fade para que se lea como "algo acaba de ocurrir". */
+@keyframes hero-chip-in {
+  from {
+    opacity: 0;
+    transform: scale(0.85) translateY(0.25rem);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.hero-chip {
+  animation: hero-chip-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Glow ambiental detrás de la pieza firma. Estático (sin parallax: eso
+   se reserva para el showcase de otra sección). */
+.hero-agenda-glow {
+  background:
+    radial-gradient(closest-side, color-mix(in srgb, var(--mint) 55%, transparent), transparent),
+    radial-gradient(closest-side, color-mix(in srgb, var(--violet) 45%, transparent), transparent);
+  filter: blur(48px);
+  opacity: 0.55;
+}
+
+/* Chips de reserva dentro de la agenda: los únicos lugares de la página
+   donde vive el color saturado, tal y como pide el brief. */
+.hero-chip-mint {
+  background: color-mix(in srgb, var(--mint) 16%, transparent);
+  color: color-mix(in srgb, var(--mint) 88%, white);
+  border-color: color-mix(in srgb, var(--mint) 42%, transparent);
+}
+
+.hero-chip-violet {
+  background: color-mix(in srgb, var(--violet) 22%, transparent);
+  color: color-mix(in srgb, var(--violet) 78%, white);
+  border-color: color-mix(in srgb, var(--violet) 50%, transparent);
+}
+
+.hero-chip-amber {
+  background: color-mix(in srgb, var(--amber) 20%, transparent);
+  color: color-mix(in srgb, var(--amber) 88%, white);
+  border-color: color-mix(in srgb, var(--amber) 48%, transparent);
+}
+
+/* Punto de "en directo" del indicador de teléfono en silencio. */
+@keyframes hero-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.hero-pulse-dot {
+  animation: hero-pulse 2.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-intro-item,
+  .hero-chip {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  .hero-pulse-dot {
+    animation: none !important;
+    opacity: 1 !important;
+  }
+}
