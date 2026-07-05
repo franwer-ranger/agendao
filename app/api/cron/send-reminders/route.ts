@@ -32,7 +32,7 @@ export async function GET(req: Request) {
 
   const authorized =
     auth === `Bearer ${secret}` ||
-    (process.env.VERCEL_ENV !== 'production' && querySecret === secret)
+    (process.env.NODE_ENV !== 'production' && querySecret === secret)
 
   if (!authorized) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
