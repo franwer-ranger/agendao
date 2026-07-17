@@ -1,72 +1,83 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Agendao
 
-## Getting Started
+SaaS multi-tenant de reservas para peluquerías y salones (estilo Booksy). Una
+sola aplicación y una sola base de datos Postgres sirven a todas las peluquerías,
+cada una con su página pública de reservas (`/[salon]/book`) y su panel de
+gestión. Aislamiento por `salon_id` con guard de app + RLS.
 
-First, run the development server:
+- **Rumbo del producto (features + roadmap):** `GUIA_PRODUCTO.md`
+- **Decisiones core / invariantes:** `MEMORY.md`
+- **Mapa del código (autogenerado):** `Project_Map.md` (`npm run map:generate`)
+- **Rumbo estratégico (giro a SaaS):** `docs/superpowers/specs/2026-06-30-saas-pivot-design.md`
+- **Reglas para agentes de IA:** `AGENTS.md`
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+Stack: Next.js 16 (App Router) + TypeScript · Drizzle ORM + `pg` sobre Postgres
+(Neon en producción) · Auth.js v5 · Resend + react-email · Kamal 2 sobre VPS.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Setup local
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Requisitos: **Node 20+** y un **Postgres** accesible (uno local, o una rama de
+[Neon](https://neon.tech) u otro Postgres gestionado).
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. Crea `.env.local` con, como mínimo:
 
-## Database (local Drizzle + SQLite)
-
-This repo carries two data layers in parallel:
-
-- **Supabase / Postgres** — the production data layer (used by everything under `lib/supabase/` and `lib/{bookings,clients,salons,...}/`).
-- **Drizzle ORM + SQLite** — a local mirror of the schema for offline iteration. Lives in `lib/db/`. Does **not** read or write production data.
-
-### First-time setup
-
-1. Make sure `DATABASE_URL=./data/dev.db` is set in `.env.local` (any writable path works).
-2. Generate the initial migration from the Drizzle schema:
    ```bash
-   npm run db:generate
+   DATABASE_URL=postgres://user:pass@host:5432/agendao   # cadena de conexión Postgres
+   APP_URL=http://localhost:3000
+   AUTH_SECRET=...            # openssl rand -base64 32
+   RESEND_API_KEY=...         # o un valor placeholder en desarrollo
+   EMAIL_FROM="Agendao <no-reply@tu-dominio>"
+   CRON_SECRET=...            # openssl rand -base64 32
+   # Opcionales: UPLOADS_DIR (por defecto data/uploads), AUTH_TRUST_HOST=true tras proxy
    ```
-   This reads `lib/db/schema.ts` and writes SQL files into `drizzle/`.
-3. Apply migrations to a fresh SQLite file:
+
+2. Instala dependencias y aplica el esquema:
+
    ```bash
-   npm run db:migrate
+   npm install
+   npm run db:migrate     # aplica las migraciones de drizzle/ a Postgres
+   npm run db:seed        # datos de ejemplo (idempotente)
    ```
-   This creates `./data/dev.db` (and the `data/` folder) if missing.
-4. Populate with realistic seed data (idempotent — safe to re-run):
+
+   `db:seed` limpia las tablas e inserta un salón de ejemplo con servicios,
+   empleados con horarios distintos, clientes y reservas **relativas a hoy**, para
+   que el dashboard siempre tenga algo que mostrar.
+
+3. Arranca:
+
    ```bash
-   npm run db:seed
+   npm run dev            # http://localhost:3000
    ```
-   Wipes every table and re-inserts one salon ("Estudio Aurora"), 4 services, 3 employees with distinct weekly schedules, 6 clients and ~14 bookings spread from yesterday to a week from now. Booking dates are generated **relative to the current moment**, so the dashboard always has something to show today.
-5. Inspect with the Drizzle Studio UI:
+
+4. Inspecciona la BD con Drizzle Studio:
+
    ```bash
    npm run db:studio
    ```
 
-### Re-creating the database from scratch
+### Cambios de esquema
+
+El esquema vive en `lib/db/schema.ts` (Drizzle, dialecto `postgresql`). Tras
+editarlo:
 
 ```bash
-rm -rf data/ drizzle/
-npm run db:generate
-npm run db:migrate
-npm run db:seed
+npm run db:generate    # genera el SQL de migración en drizzle/
+npm run db:migrate     # lo aplica
 ```
 
-## Autenticación (Bloque 10)
+La validez dura (no-solape de reservas con `EXCLUDE USING gist`, triggers, RLS por
+tenant) vive en Postgres; la composición y las reglas de negocio, en TypeScript.
 
-Auth.js v5 con Credentials (email + password). Sesiones JWT respaldadas por la
-tabla `auth_sessions` para permitir revocación inmediata.
+## Autenticación
+
+Auth.js v5 con Credentials (email + password, hash argon2id). Estrategia JWT: el
+token lleva `sid` y `salonId`, y el `sid` se valida contra la tabla
+`auth_sessions` en cada request para permitir **revocación inmediata**.
 
 ### Crear el primer admin
 
-El registro público está deshabilitado. El primer admin se crea por script:
+El registro público aún no existe (llega con el signup del roadmap). El primer
+admin se crea por script:
 
 ```bash
 # Si solo hay un salón en la DB
@@ -76,7 +87,9 @@ tsx scripts/create-admin.ts admin@ejemplo.com supersecreta1
 tsx scripts/create-admin.ts admin@ejemplo.com supersecreta1 estudio-aurora
 ```
 
-Requisitos: email válido, password ≥ 8 caracteres. Se hashea con argon2id.
+Requisitos: email válido, password ≥ 8 caracteres. El insert va scoped por el GUC
+de tenant (`app.current_salon_id`) dentro de la misma transacción, para respetar
+la RLS.
 
 En producción (Kamal):
 
@@ -92,114 +105,94 @@ kamal app exec --interactive "tsx scripts/create-admin.ts admin@ejemplo.com supe
 ### Revocación de sesión
 
 Borrar la fila correspondiente en `auth_sessions` (vía `db:studio` o SQL)
-invalida la sesión en el siguiente request. El usuario será redirigido a
-`/login`. Pasar por `/login` haciendo sign-out también limpia la fila.
+invalida la sesión en el siguiente request y redirige a `/login`. Hacer sign-out
+también limpia la fila.
 
 ### Recuperación de contraseña
 
 Flujo en `/forgot-password` → `/reset-password/<token>`. Token de un solo uso,
 TTL 60 min. Consumir el token revoca todas las sesiones activas del usuario.
 
-### Caveats vs Postgres
-
-- No RLS, no PL/pgSQL triggers, no `EXCLUDE` constraints. Hard validity that Postgres enforces (no-overlap of bookings, advisory locks for concurrency, magic-link RPCs) is **not** replicated. The TS layer is the single source of business rules in this local mode.
-- `tstzrange` columns (`employee_time_off.during`, `salon_closures.during`) are split into `starts_at` / `ends_at`. The generated `during` columns on `bookings` / `booking_items` are not replicated (derivable from start/end).
-- `citext` is emulated with `COLLATE NOCASE`.
-- `uuid` columns are plain text generated by `crypto.randomUUID()` in app code.
-
 ## Docker (producción)
 
-La app se distribuye como imagen Docker multi-stage (`node:20-slim` + Next standalone) lista para Kamal sobre un VPS x86_64.
+La app se distribuye como imagen Docker multi-stage (`node:20-slim` + Next
+standalone) lista para Kamal sobre un VPS amd64. La base de datos Postgres es
+**externa** (Neon u otro Postgres gestionado): no vive en el contenedor.
 
 ### Variables de entorno
 
-Copia la plantilla y rellena los secretos:
+Mínimo necesario: `DATABASE_URL` (Postgres), `APP_URL`, `AUTH_SECRET`,
+`RESEND_API_KEY`, `EMAIL_FROM`, `CRON_SECRET`. Detrás de proxy añadir
+`AUTH_TRUST_HOST=true`. Ver `config/deploy.yml` para el reparto clear/secret.
+
+### Run local con la imagen
 
 ```bash
-cp .env.example .env.local
+docker build -t agendao .
+docker run --rm -p 3000:3000 --env-file .env.local --name agendao agendao
 ```
 
-Mínimo necesario: `DATABASE_URL`, `APP_URL`, `AUTH_SECRET`, `RESEND_API_KEY`, `EMAIL_FROM`, `CRON_SECRET`. En producción detrás de proxy añadir `AUTH_TRUST_HOST=true`.
-
-### Build (desde Mac ARM hacia VPS x86)
-
-```bash
-docker build --platform=linux/amd64 -t reservas-peluqueria .
-```
-
-El primer build es lento (compila `better-sqlite3` bajo emulación QEMU); los siguientes reutilizan caché.
-
-### Run local con la DB en volumen
-
-```bash
-docker run --rm -p 3000:3000 \
-  -v "$(pwd)/data:/app/data" \
-  --env-file .env.local \
-  --name agendao \
-  reservas-peluqueria
-```
-
-- Las migraciones Drizzle se aplican automáticamente al arrancar (ver `docker-entrypoint.sh` → `scripts/migrate-prod.mjs`).
+- Las migraciones se aplican automáticamente al arrancar
+  (`docker-entrypoint.sh` → `scripts/migrate-prod.mjs`).
 - El contenedor corre como usuario no-root (`nextjs`, uid 1001).
-- `GET /api/health` devuelve `200` si la DB responde, `503` en caso contrario — es el endpoint que sondea Kamal.
+- `GET /api/health` devuelve `200` si la DB responde, `503` en caso contrario — es
+  el endpoint que sondea Kamal.
 
 ## Despliegue en VPS con Kamal 2
 
-La app se despliega con [Kamal 2](https://kamal-deploy.org/) sobre un VPS Hetzner amd64. La config vive en `config/deploy.yml` y los secretos en `.kamal/secrets` (no versionado).
+La app se despliega con [Kamal 2](https://kamal-deploy.org/) sobre un VPS amd64.
+La config vive en `config/deploy.yml` y los secretos en `.kamal/secrets` (no
+versionado). Postgres es gestionado (Neon): su backup/PITR lo da el proveedor.
 
 ### Prerrequisitos
 
-- VPS Hetzner accesible por SSH como `root` con tu llave pública.
-- DNS A-record del dominio → IP del VPS, con el proxy de Cloudflare **apagado** (gris) durante la emisión del cert de Let's Encrypt. Después se puede activar.
-- Personal Access Token de GitHub con scope `write:packages` exportado como `GHCR_TOKEN`.
-- Kamal 2.x: `gem install kamal && kamal version` (≥ 2.10).
-- Firewall del VPS abriendo TCP 22, 80 y 443.
+- VPS accesible por SSH como `root` con tu llave pública.
+- DNS A-record del dominio → IP del VPS (proxy de Cloudflare **apagado** durante
+  la emisión del cert de Let's Encrypt; después se puede activar).
+- `DATABASE_URL` de un Postgres gestionado accesible desde el VPS.
+- Personal Access Token de GitHub con scope `write:packages` como `GHCR_TOKEN`.
+- Kamal 2.x (`gem install kamal`, ≥ 2.10). Firewall abriendo TCP 22, 80 y 443.
 
 ### Setup único del host
 
+Solo se necesita el directorio de **uploads** en el volumen persistente (Postgres
+es externo):
+
 ```bash
 ssh root@<IP>
-mkdir -p /var/lib/agendao/data
+mkdir -p /var/lib/agendao/data/uploads
 chown -R 1001:1001 /var/lib/agendao/data
 chmod 750 /var/lib/agendao/data
 exit
 ```
 
-El `chown` a uid 1001 es indispensable: el contenedor corre como usuario `nextjs` (uid 1001) y no podría escribir el `.db` ni los uploads si el host dir queda como root.
-
-### Configuración local
-
-1. Verificar que `config/deploy.yml` tiene el dominio correcto en `proxy.host` y `env.clear.APP_URL` (hoy `app.agendao.xyz`).
-2. Verificar que `.kamal/secrets` tiene `EMAIL_FROM` apuntando al dominio real. En M8 se sustituye `RESEND_API_KEY=disabled-until-m8` por el valor real de Resend (con `kamal env push` queda activo sin redeploy).
-3. Exportar antes de cada deploy:
-   ```bash
-   export GHCR_TOKEN=ghp_xxx
-   export CRON_SECRET=$(openssl rand -base64 32)   # guardar en password manager
-   ```
+El `chown` a uid 1001 es indispensable: el contenedor corre como `nextjs`
+(uid 1001) y no podría escribir los uploads si el host dir queda como root.
 
 ### Primer despliegue
 
 ```bash
 echo "$GHCR_TOKEN" | docker login ghcr.io -u franwer-ranger --password-stdin
-kamal setup       # instala Docker en el host, levanta kamal-proxy y hace el primer deploy
-curl -sf https://<DOMINIO>/api/health
-# Esperado: {"status":"ok"}
+kamal setup       # instala Docker, levanta kamal-proxy y hace el primer deploy
+curl -sf https://<DOMINIO>/api/health   # esperado: {"status":"ok"}
 ```
 
 ### Operaciones comunes
 
 ```bash
 kamal deploy                                  # nuevo cambio de código
-kamal logs -f                                 # logs en vivo (alias: `kamal logs`)
-kamal app exec --interactive --reuse "sh"     # shell en el contenedor (alias: `kamal shell`)
+kamal logs                                    # logs en vivo (alias)
+kamal shell                                   # shell en el contenedor (alias)
+kamal migrate                                 # corre scripts/migrate-prod.mjs (alias)
 kamal proxy logs                              # logs del proxy (TLS, routing)
 kamal rollback <version>                      # volver a una imagen anterior
-kamal env push                                # propagar cambios en .kamal/secrets sin redeploy
 ```
 
 ### Preview HTTP sin dominio
 
-Mientras no haya un dominio real apuntando a la IP, `kamal setup` fallará al intentar emitir el certificado de Let's Encrypt. Para validar el deploy sin TLS, edita temporalmente `config/deploy.yml`:
+Mientras no haya un dominio real apuntando a la IP, `kamal setup` fallará al emitir
+el certificado de Let's Encrypt. Para validar el deploy sin TLS, edita
+temporalmente `config/deploy.yml`:
 
 1. Comentar todo el bloque `proxy:`.
 2. Bajo `servers.web` añadir un mapeo de puerto al host:
@@ -207,25 +200,25 @@ Mientras no haya un dominio real apuntando a la IP, `kamal setup` fallará al in
    servers:
      web:
        hosts:
-         - 65.109.12.199
+         - <IP>
        options:
          publish:
            - '80:3000'
    ```
 3. `kamal setup` → la app queda en `http://<IP>/`.
 
-Cuando llegue el dominio, revertir: descomentar `proxy:`, quitar `options.publish`, actualizar `proxy.host` y `env.clear.APP_URL`, y `kamal redeploy`.
+Cuando llegue el dominio, revertir: descomentar `proxy:`, quitar `options.publish`,
+actualizar `proxy.host` y `env.clear.APP_URL`, y `kamal redeploy`.
 
 ### Notas importantes
 
-- **SQLite no soporta réplicas paralelas**: `boot.limit: 1` en `deploy.yml` fuerza stop-then-start, lo que genera ~5–15 s de 502s durante cada deploy mientras el nuevo contenedor arranca y corre migraciones. Aceptable para esta etapa.
-- **El bind mount `/var/lib/agendao/data` es la única fuente de verdad** (SQLite + uploads). Backupearlo antes de subir tráfico real.
-- **El primer build amd64 desde Mac ARM tarda 5–10 min** por la emulación QEMU de `better-sqlite3`. Los siguientes reutilizan caché de buildx.
-- **`kamal shell` entra como `nextjs`, no `root`**. Para debug que requiera root, entrar por SSH al VPS y `docker exec -u 0 -it <container> sh`.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- **`boot.limit: 1`** fuerza stop-then-start en cada deploy. Con un único host, evita
+  que dos contenedores monten el mismo **volumen de uploads** a la vez; genera unos
+  segundos de 502s mientras arranca el contenedor nuevo. Aceptable para esta etapa.
+- **El bind mount `/var/lib/agendao/data` guarda los uploads** (`data/uploads/`), la
+  única fuente de verdad en disco. Migrar a object storage (R2/S3) está en el
+  roadmap como fast-follow.
+- **Los datos de negocio viven en Postgres gestionado**, no en el VPS. El backup lo
+  da el proveedor (Neon).
+- **Kamal construye desde un clon de git**: los cambios sin commitear no se
+  despliegan. Commitea antes de `kamal deploy`.

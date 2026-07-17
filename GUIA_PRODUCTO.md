@@ -9,10 +9,9 @@
 > - Para el **rumbo estratégico** (giro a SaaS) → `docs/superpowers/specs/2026-06-30-saas-pivot-design.md`.
 > - Para la **cola técnica priorizada** → `plans/README.md`.
 >
-> ⚠️ **Nota de coherencia:** `MEMORY.md` y `README.md` describen todavía el modelo
-> antiguo (SQLite, "una instancia por cliente"). El producto **ya pivotó a un SaaS
-> multi-tenant sobre Postgres**; la fuente de verdad del rumbo es el pivot doc.
-> Realinear esos ficheros está en la cola (`plans/011`).
+> ℹ️ **Coherencia:** `README.md`, `MEMORY.md` y `AGENTS.md` están alineados con el
+> SaaS multi-tenant sobre Postgres. Los roadmaps pre-pivot (SQLite, "una instancia
+> por cliente") se archivaron en `docs/archive/`.
 
 ---
 
@@ -159,8 +158,8 @@ follow y de calidad técnica.
 ### 🧹 Cola técnica (calidad, en `plans/`)
 
 Fixes P1 (rol admin server-side, idempotencia de emails, aritmética DST, consumo
-atómico de tokens…), endurecimiento HTTP, higiene de toolchain y **realineación de
-la documentación** (`README`/`MEMORY`/`AGENTS`) con el SaaS Postgres (`plans/011`).
+atómico de tokens…), endurecimiento HTTP e higiene de toolchain. La realineación de
+la documentación con el SaaS Postgres (`plans/011`) ya está hecha.
 
 ### ⛔ Fuera de alcance (decisión deliberada)
 

@@ -26,7 +26,7 @@ adds `npm run typecheck` (a stale `.next/dev/types` file makes bare
 | 008 | Cabeceras de endurecimiento HTTP | P2 | S | — | TODO |
 | 009 | `getCurrentSalon` a `lib/salons/` con `cache()` | P2 | S | 002 (orden) | TODO |
 | 010 | Índice `(salon_id, starts_at)` en `booking_items` + pool acotado | P2 | S | — | TODO |
-| 011 | Realinear README/MEMORY/AGENTS con el SaaS Postgres | P2 | M | — | TODO |
+| 011 | Realinear README/MEMORY/AGENTS con el SaaS Postgres | P2 | M | — | DONE (rama `claude/app-roadmap-docs-yu0574`; PLAN*.md archivados en `docs/archive/`) |
 | 012 | (spike) Diseño `salons.status` + signup self-serve | P3 | M | — | TODO |
 | 013 | (spike) Diseño enlace mágico cancelar/reprogramar | P3 | M | 006 (leer), 012 (leer si existe) | TODO |
 
