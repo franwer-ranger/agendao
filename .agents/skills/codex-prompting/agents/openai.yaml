@@ -1,0 +1,4 @@
+interface:
+  display_name: "Codex Prompting"
+  short_description: "Crea prompts y recomienda modelo y effort"
+  default_prompt: "Usa $codex-prompting para convertir mi tarea en un prompt listo para Codex y recomendar modelo y effort."
