@@ -16,6 +16,7 @@ import {
 import { resolveUniqueEmployeeSlug } from '@/lib/employees/slug'
 import { uploadSalonLogo } from '@/lib/salons/storage'
 import { resolveUniqueServiceSlug } from '@/lib/services/slug'
+import { createTrialLifecycle } from '@/lib/salons/lifecycle'
 import { salonToday } from '@/lib/time'
 
 import { setupPayloadSchema } from './schema'
@@ -86,6 +87,8 @@ export async function performSetup(
     await tx.execute(
       sql`select set_config('app.current_salon_id', ${String(salonId)}, true)`,
     )
+
+    await createTrialLifecycle(salonId, tx)
 
     const hoursRows = payload.salon.workingHours.days
       .filter((d) => !d.closed && d.opens_at && d.closes_at)

@@ -297,6 +297,8 @@ async function main(): Promise<void> {
   let skipped = 0
 
   await withTenant(salon.id, async (tx) => {
+    await tx.insert(schema.salon_lifecycle).values({ salon_id: salon.id })
+
     await tx.insert(schema.salon_working_hours).values(
       WORKING_HOURS.map((wh) => ({
         salon_id: salon.id,

@@ -69,6 +69,36 @@ export const salons = pgTable(
   ],
 )
 
+export const salon_lifecycle = pgTable(
+  'salon_lifecycle',
+  {
+    salon_id: bigint({ mode: 'number' })
+      .primaryKey()
+      .references(() => salons.id, { onDelete: 'cascade' }),
+    billing_status: text().notNull().default('trialing'),
+    trial_ends_at: timestamp({ withTimezone: true, mode: 'date' }).default(
+      sql`now() + interval '14 days'`,
+    ),
+    suspended_at: timestamp({ withTimezone: true, mode: 'date' }),
+    created_at: timestamp({ withTimezone: true, mode: 'date' })
+      .notNull()
+      .defaultNow(),
+    updated_at: timestamp({ withTimezone: true, mode: 'date' })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    check(
+      'salon_lifecycle_billing_status_check',
+      sql`${t.billing_status} in ('trialing','active','past_due','canceled')`,
+    ),
+    check(
+      'salon_lifecycle_trial_end_check',
+      sql`${t.billing_status} <> 'trialing' or ${t.trial_ends_at} is not null`,
+    ),
+  ],
+)
+
 export const app_users = pgTable(
   'app_users',
   {
@@ -574,6 +604,7 @@ export const booking_notifications = pgTable(
 )
 
 export type Salon = typeof salons.$inferSelect
+export type SalonLifecycle = typeof salon_lifecycle.$inferSelect
 export type AppUser = typeof app_users.$inferSelect
 export type Employee = typeof employees.$inferSelect
 export type Service = typeof services.$inferSelect
