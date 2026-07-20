@@ -6,7 +6,7 @@
 > `GUIA_PRODUCTO.md`; para las decisiones core, `MEMORY.md` y el pivot en
 > `docs/superpowers/specs/`.
 
-_Generado: 2026-07-15 · commit `6b94570` (2026-07-15) · 20 páginas, 5 handlers, 15 módulos lib, 18 tablas._
+_Generado: 2026-07-20 · commit `dc63ee3` (2026-07-18) · 20 páginas, 5 handlers, 15 módulos lib, 19 tablas._
 
 ## Qué es
 
@@ -104,7 +104,7 @@ Rutas sin área asignada.
 | `lib/employees/` | CRUD de empleados, editor de horario semanal y slugs. | actions.ts, queries.ts, schema.ts, slug.ts |
 | `lib/format.ts` | Utilidad compartida. | — |
 | `lib/salon.ts` | Utilidad compartida. | — |
-| `lib/salons/` | Ajustes del salón, storage de logos y schemas de validación. | actions.ts, queries.ts, schema.ts, storage.ts |
+| `lib/salons/` | Ajustes del salón, ciclo de vida y acceso tenant-safe, storage de logos y schemas de validación. | actions.ts, lifecycle.ts, queries.ts, schema.ts, storage.ts |
 | `lib/services/` | CRUD de servicios y slugs. | actions.ts, queries.ts, schema.ts, slug.ts |
 | `lib/setup/` | Wizard de onboarding: gating por-tenant (`onboarding_completed_at`) y provisión inicial. | actions.ts, is-configured.ts, perform-setup.ts, schema.ts, service-template.ts |
 | `lib/storage.ts` | Utilidad compartida. | — |
@@ -115,9 +115,9 @@ Rutas sin área asignada.
 
 Schema Drizzle en `lib/db/schema.ts`. Tablas:
 
-`app_users` · `auth_password_reset_tokens` · `auth_sessions` · `booking_items` · `booking_notifications` · `booking_status_events` · `booking_tokens` · `bookings` · `clients` · `employee_recurring_breaks` · `employee_services` · `employee_time_off` · `employee_weekly_schedule` · `employees` · `salon_closures` · `salon_working_hours` · `salons` · `services`
+`app_users` · `auth_password_reset_tokens` · `auth_sessions` · `booking_items` · `booking_notifications` · `booking_status_events` · `booking_tokens` · `bookings` · `clients` · `employee_recurring_breaks` · `employee_services` · `employee_time_off` · `employee_weekly_schedule` · `employees` · `salon_closures` · `salon_lifecycle` · `salon_working_hours` · `salons` · `services`
 
-Migraciones en `drizzle/` (aplicar con `npm run db:migrate`): `0000_extensions.sql`, `0001_brainy_lionheart.sql`, `0002_hardening.sql`, `0003_rls.sql`.
+Migraciones en `drizzle/` (aplicar con `npm run db:migrate`): `0000_extensions.sql`, `0001_brainy_lionheart.sql`, `0002_hardening.sql`, `0003_rls.sql`, `0004_wakeful_spencer_smythe.sql`.
 
 ## Scripts
 

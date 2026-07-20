@@ -77,6 +77,11 @@ Redis, colas dedicadas, SMS, pagos/depósitos online.
   sesión, nunca del cliente.
 - **Gating de onboarding por-tenant** vía `salons.onboarding_completed_at`
   (`lib/setup/is-configured.ts`), no un flag global.
+- **Ciclo de vida por-tenant** en `salon_lifecycle`, protegido por RLS fail-closed:
+  billing (`trialing | active | past_due | canceled`) y suspensión operativa son
+  dimensiones separadas; la suspensión prevalece en la lectura efectiva sin
+  destruir el estado de billing. El trial inicial dura 14 días y su fecha puede
+  extenderse en el futuro desde superadmin.
 - **`data/uploads/` es el único estado en disco** (volumen del host). Los datos de
   negocio viven en Postgres gestionado.
 
@@ -85,8 +90,9 @@ Redis, colas dedicadas, SMS, pagos/depósitos online.
 ## Estado y roadmap
 
 En `GUIA_PRODUCTO.md` (features + roadmap) y `plans/README.md` (cola técnica). En una
-línea: la fundación multi-tenant (Postgres + RLS + gating) está hecha; lo siguiente
-es signup público, `salons.status`, billing (Stripe) y superadmin.
+línea: la fundación multi-tenant (Postgres + RLS + gating de onboarding) y el
+contrato persistente de ciclo de vida están hechos; lo siguiente es signup
+público, billing/gating de acceso (Stripe) y superadmin.
 
 ---
 

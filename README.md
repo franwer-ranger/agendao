@@ -68,6 +68,11 @@ npm run db:migrate     # lo aplica
 La validez dura (no-solape de reservas con `EXCLUDE USING gist`, triggers, RLS por
 tenant) vive en Postgres; la composición y las reglas de negocio, en TypeScript.
 
+Cada salón tiene además un registro 1:1 en `salon_lifecycle`. Los salones nuevos
+empiezan con un trial de 14 días; el estado de billing y la suspensión operativa
+se conservan por separado y Postgres rechaza transiciones inválidas. Esta tabla es
+tenant-scoped y solo se consulta dentro de `withTenant(salonId, fn)`.
+
 ## Autenticación
 
 Auth.js v5 con Credentials (email + password, hash argon2id). Estrategia JWT: el

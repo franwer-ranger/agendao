@@ -121,6 +121,10 @@ follow y de calidad técnica.
 
 - Sub-proyecto **A — Fundación multi-tenant:** migración a Postgres, gating de
   onboarding por-tenant y aislamiento (guard de app + RLS).
+- **Fundación del ciclo de vida del tenant:** registro 1:1 protegido por RLS con
+  trial de 14 días, estado de billing, suspensión independiente y transiciones
+  válidas impuestas por Postgres. El gating que interpreta estos datos llega con
+  billing.
 - Motor de disponibilidad, reserva pública y anti-doble-reserva.
 - Panel admin completo (hoy, calendario, empleados, servicios, ajustes).
 - Auth (login, recuperación, sesiones revocables).
@@ -133,14 +137,15 @@ follow y de calidad técnica.
   contraseña + nombre/slug del salón) en una transacción, login automático y
   redirección al wizard. Incluye **re-cablear el wizard** (quitarle el paso de
   crear admin) y **cerrar el `/setup` abierto**. Diseño previo en `plans/012`.
-- **Ciclo de vida del tenant** (`salons.status`: `trialing / active / past_due /
-  canceled / suspended`): columna que el signup escribe, el billing actualiza y el
-  gating lee. Aún no existe. Diseño en `plans/012`.
+- **Consumidores del ciclo de vida del tenant:** conectar signup al estado
+  `trialing`, actualizar billing mediante webhooks, aplicar gating y permitir que
+  superadmin suspenda, reactive o extienda el trial. El contrato persistente común
+  ya existe en `salon_lifecycle`; estas integraciones siguen pendientes.
 - **C — Billing con Stripe (self-serve mínimo):** Checkout + Portal + trial +
   webhooks que actualizan el estado de suscripción. **Gating:** trial expirado o
   suscripción cancelada apaga el panel **y** la página pública de reservas (palanca
-  de cobro). Precio provisional 24,90 €/mes, trial 14 días (`landing-data.ts`,
-  pendiente de decisión de negocio). No construido.
+  de cobro). Trial confirmado de 14 días; el precio provisional de 24,90 €/mes
+  (`landing-data.ts`) sigue pendiente de decisión de negocio. No construido.
 - **D — Superadmin mínimo:** vista de salones (estado de suscripción, alta, nº de
   reservas) con acciones de suspender/reactivar. No construido.
 - **Enlaces mágicos de cliente** (cancelar/reprogramar): cerrar el hueco de la

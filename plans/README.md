@@ -44,6 +44,10 @@ REJECTED (with one-line rationale).
 - **012 absorbs the `/setup` abuse finding**: the open unauthenticated
   `/setup` (unthrottled argon2 + unlimited tenant creation) is fixed as part
   of the signup design, not as a standalone patch.
+- **AGE-001 cubre la base de ciclo de vida de 012**: `salon_lifecycle`, el trial
+  inicial, el backfill y las transiciones ya pertenecen a la historia de Product
+  OS. El alcance pendiente del spike 012 es el diseño de signup y el re-cableado
+  de `/setup`; no debe volver a diseñar un `salons.status` alternativo.
 - **007's operator follow-up matters**: `AUTH_SECRET`/`AUTH_TRUST_HOST` are
   absent from `config/deploy.yml` today; the code change adds the wiring but
   the operator must put the secret in `.kamal/secrets` and `kamal env push`.

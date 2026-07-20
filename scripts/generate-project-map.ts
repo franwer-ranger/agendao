@@ -73,7 +73,8 @@ const LIB_META: Record<string, string> = {
   email:
     'Emails transaccionales (Resend + react-email): plantillas, triggers por evento y batch de recordatorios.',
   employees: 'CRUD de empleados, editor de horario semanal y slugs.',
-  salons: 'Ajustes del salón, storage de logos y schemas de validación.',
+  salons:
+    'Ajustes del salón, ciclo de vida y acceso tenant-safe, storage de logos y schemas de validación.',
   services: 'CRUD de servicios y slugs.',
   setup:
     'Wizard de onboarding: gating por-tenant (`onboarding_completed_at`) y provisión inicial.',

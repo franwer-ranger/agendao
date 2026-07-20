@@ -6,6 +6,11 @@
 > the STOP conditions, and when done update the status row in
 > `plans/README.md` — unless a reviewer dispatched you and told you they
 > maintain the index.
+
+> **Actualización 2026-07-20:** AGE-001 sustituyó y ejecutó el alcance de ciclo
+> de vida: modelo `salon_lifecycle`, trial, backfill, RLS y transiciones. No
+> ejecutar Step 2 ni diseñar un `salons.status` alternativo. El alcance pendiente
+> de este spike es signup, abuso y re-cableado de `/setup`.
 >
 > **Drift check (run first)**: `git diff --stat 7bff3dd..HEAD -- lib/setup lib/db/schema.ts app/setup docs/superpowers`
 > If these changed materially since this plan was written, re-read them
