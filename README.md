@@ -81,8 +81,9 @@ token lleva `sid` y `salonId`, y el `sid` se valida contra la tabla
 
 ### Crear el primer admin
 
-El registro público aún no existe (llega con el signup del roadmap). El primer
-admin se crea por script:
+El registro público está disponible en `/signup` y crea el salón, el admin y el
+trial inicial. Para instalaciones existentes, el primer admin también se puede
+crear por script:
 
 ```bash
 # Si solo hay un salón en la DB

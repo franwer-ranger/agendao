@@ -74,9 +74,10 @@ Acceso por rol: **admin** (acceso total) y **staff** (su agenda y poco más).
 
 Asistente multi-paso para dejar un salón operativo: salón → empleados → servicios →
 relación servicio-empleado → horarios. Guarda borrador en el navegador. **Estado
-parcial:** hoy asume "primer arranque" y aún crea el usuario admin dentro del
-wizard; con el signup público habrá que re-cablearlo (el admin ya existirá). Además
-la ruta está **abierta sin autenticación**, algo a cerrar con el signup.
+parcial:** el signup ya crea el salón y el admin, pero el wizard aún conserva el
+flujo histórico de provisión completa y necesita re-cablearse para continuar sobre
+ese tenant sin duplicarlo. La ruta también debe cerrarse explícitamente para
+usuarios no autenticados.
 
 ### 6. Notificaciones por email ✅
 
@@ -85,11 +86,12 @@ recordatorio 24h antes, cancelación, reprogramación** para el cliente; **aviso
 nueva reserva** para el salón; **reset de contraseña** para el equipo. Envío
 idempotente (nunca se duplica el mismo aviso). Recordatorios disparados por cron.
 
-### 7. Cuentas y acceso del equipo ✅
+### 7. Cuentas y acceso del equipo 🟡
 
 Login por email + contraseña (hash seguro), sesiones revocables al instante,
-recuperación de contraseña con enlace de un solo uso (caduca en 1h). Sin registro
-público todavía: las cuentas las crea el admin o un script.
+recuperación de contraseña con enlace de un solo uso (caduca en 1h). El registro
+público ya está disponible en `/signup`; el onboarding posterior todavía requiere
+el re-cableado descrito arriba.
 
 ### 8. Aislamiento entre salones (multi-tenant) ✅
 
@@ -102,7 +104,7 @@ cobrar a varios salones sobre una misma base.
 
 Página pública de Agendao para captar peluquerías: propuesta de valor, cómo
 funciona, features, pricing, FAQ y llamada a la acción a "prueba gratis". Los CTAs
-ya apuntan a `/signup` (ruta aún por construir).
+ya apuntan a `/signup`.
 
 ### 10. Enlaces de gestión para el cliente final ⛔
 
@@ -135,8 +137,8 @@ follow y de calidad técnica.
 
 - **B — Signup público self-serve** (`/signup`): alta de peluquería (email +
   contraseña + nombre/slug del salón) en una transacción, login automático y
-  redirección al wizard. Incluye **re-cablear el wizard** (quitarle el paso de
-  crear admin) y **cerrar el `/setup` abierto**. Diseño previo en `plans/012`.
+  redirección al wizard. La provisión inicial ya está hecha; quedan **re-cablear
+  el wizard** (quitarle el paso de crear admin) y **cerrar el `/setup` abierto**.
 - **Consumidores del ciclo de vida del tenant:** conectar signup al estado
   `trialing`, actualizar billing mediante webhooks, aplicar gating y permitir que
   superadmin suspenda, reactive o extienda el trial. El contrato persistente común

@@ -6,7 +6,7 @@
 > `GUIA_PRODUCTO.md`; para las decisiones core, `MEMORY.md` y el pivot en
 > `docs/superpowers/specs/`.
 
-_Generado: 2026-07-20 · commit `dc63ee3` (2026-07-18) · 20 páginas, 5 handlers, 15 módulos lib, 19 tablas._
+_Generado: 2026-07-21 · commit `b34ead6` (2026-07-20) · 21 páginas, 5 handlers, 16 módulos lib, 19 tablas._
 
 ## Qué es
 
@@ -62,6 +62,14 @@ Alta y configuración inicial del salón (multi-paso, borrador en localStorage).
 | --- | --- | --- | --- |
 | `/setup` | page | `app/setup/page.tsx` | layout, _components (3), _lib (3), _steps (7) |
 
+### Registro público
+
+Alta self-serve del salón, creación del admin y arranque del trial.
+
+| Ruta | Tipo | Archivo | Co-ubicado |
+| --- | --- | --- | --- |
+| `/signup` | page | `app/signup/page.tsx` | actions.ts, _components (1) |
+
 ### Autenticación
 
 Login, recuperar y restablecer contraseña (Auth.js v5).
@@ -104,9 +112,10 @@ Rutas sin área asignada.
 | `lib/employees/` | CRUD de empleados, editor de horario semanal y slugs. | actions.ts, queries.ts, schema.ts, slug.ts |
 | `lib/format.ts` | Utilidad compartida. | — |
 | `lib/salon.ts` | Utilidad compartida. | — |
-| `lib/salons/` | Ajustes del salón, ciclo de vida y acceso tenant-safe, storage de logos y schemas de validación. | actions.ts, lifecycle.ts, queries.ts, schema.ts, storage.ts |
+| `lib/salons/` | Ajustes del salón, ciclo de vida y acceso tenant-safe, storage de logos y schemas de validación. | actions.ts, lifecycle.ts, queries.ts, schema.ts, slug.ts, storage.ts |
 | `lib/services/` | CRUD de servicios y slugs. | actions.ts, queries.ts, schema.ts, slug.ts |
 | `lib/setup/` | Wizard de onboarding: gating por-tenant (`onboarding_completed_at`) y provisión inicial. | actions.ts, is-configured.ts, perform-setup.ts, schema.ts, service-template.ts |
+| `lib/signup/` | Registro público self-serve: validación, provisión del salón/admin y trial inicial. | provision.ts, schema.ts |
 | `lib/storage.ts` | Utilidad compartida. | — |
 | `lib/time.ts` | Utilidad compartida. | — |
 | `lib/utils.ts` | Utilidad compartida. | — |

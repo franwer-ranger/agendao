@@ -56,8 +56,10 @@ Redis, colas dedicadas, SMS, pagos/depósitos online.
 - **Confirmación automática de reservas** por defecto. `pendiente` para excepciones.
 - **Sin pagos online ni depósitos** en v1. El no-show se gestiona manualmente.
 - **Roles:** `admin` (acceso total) y `staff` (su agenda y poco más).
-- **Registro público (signup) y enlace mágico de cliente**: en el roadmap, aún no
-  construidos. Hoy las cuentas las crea el admin o `scripts/create-admin.ts`.
+- **Registro público (signup)**: `/signup` crea el salón, el admin y el trial de 14
+  días en una transacción y arranca sesión; el wizard posterior aún debe
+  re-cablearse para no volver a provisionar el tenant. El enlace mágico de cliente
+  sigue sin construirse.
 
 ---
 
@@ -102,8 +104,9 @@ público, billing/gating de acceso (Stripe) y superadmin.
   explícita: sin tests automatizados). Verificar a mano cualquier cambio del motor.
 - **Fuga cross-tenant:** mitigada con guard de app **y** RLS. Auditar que ningún
   call-site consulte "el único salón" en vez de filtrar por `salonId`.
-- **Onboarding/signup roto:** el `/setup` está hoy abierto y sin throttle; el signup
-  del roadmap lo cierra.
+- **Onboarding/signup roto:** `/signup` ya existe, pero `/setup` todavía conserva
+  la provisión histórica de salón/admin y no está cerrado explícitamente para
+  usuarios no autenticados.
 - **Deriva de documentación:** mantener README/MEMORY/GUIA/AGENTS coherentes con el
   código (ver la regla de documentación en `AGENTS.md`).
 

@@ -28,6 +28,7 @@ const AREA_ORDER = [
   'booking',
   'admin',
   'setup',
+  'signup',
   'auth',
   'api',
   'other',
@@ -50,6 +51,10 @@ const AREA_META: Record<Area, { title: string; desc: string }> = {
   setup: {
     title: 'Onboarding (wizard)',
     desc: 'Alta y configuración inicial del salón (multi-paso, borrador en localStorage).',
+  },
+  signup: {
+    title: 'Registro público',
+    desc: 'Alta self-serve del salón, creación del admin y arranque del trial.',
   },
   auth: {
     title: 'Autenticación',
@@ -78,6 +83,8 @@ const LIB_META: Record<string, string> = {
   services: 'CRUD de servicios y slugs.',
   setup:
     'Wizard de onboarding: gating por-tenant (`onboarding_completed_at`) y provisión inicial.',
+  signup:
+    'Registro público self-serve: validación, provisión del salón/admin y trial inicial.',
 }
 
 // Dependencias que resumen el stack (se leen del package.json en vivo).
@@ -157,6 +164,7 @@ function classifyArea(segments: string[]): Area {
   if (segments.some((s) => s === 'admin')) return 'admin'
   if (segments.some((s) => s === '[salonSlug]')) return 'booking'
   if (segments.some((s) => s === 'setup')) return 'setup'
+  if (segments.some((s) => s === 'signup')) return 'signup'
   if (segments.some((s) => s === 'api')) return 'api'
   if (
     segments.some((s) =>
